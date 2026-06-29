@@ -9,9 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
+    "leaflet-color-markers": "^0.1.0",
+    "leaflet-defaulticon-compatibility": "^0.1.2",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
