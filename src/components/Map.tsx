@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
@@ -46,9 +47,9 @@ const regions: Region[] = [
     officeCount: 3,
     color: "#059669",
     offices: [
-      { id: "r1", name: "المكتب الرئيسي - الرياض", city: "الرياض", position: [24.7136, 46.6753], phone: "011-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الرياض", images: ["🏢", "📸", "🏬"] },
-      { id: "r2", name: "مكتب الرياض الجنوبي", city: "الرياض", position: [24.65, 46.72], phone: "011-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "حي العزيزية، الرياض", images: ["🏪", "📸"] },
-      { id: "r3", name: "مكتب الرياض الشمالي", city: "الرياض", position: [24.78, 46.62], phone: "011-345-6789", hours: "8:00 ص - 11:00 م", services: ["مبيعات", "صيانة"], address: "حي النزهة، الرياض", images: ["🏪", "📸"] },
+      { id: "r1", name: "المكتب الرئيسي - الرياض", city: "الرياض", position: [24.7136, 46.6753], phone: "011-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الرياض", images: ["/images/offices/placeholder.webp"] },
+      { id: "r2", name: "مكتب الرياض الجنوبي", city: "الرياض", position: [24.65, 46.72], phone: "011-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "حي العزيزية، الرياض", images: ["/images/offices/placeholder.webp"] },
+      { id: "r3", name: "مكتب الرياض الشمالي", city: "الرياض", position: [24.78, 46.62], phone: "011-345-6789", hours: "8:00 ص - 11:00 م", services: ["مبيعات", "صيانة"], address: "حي النزهة، الرياض", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -59,8 +60,8 @@ const regions: Region[] = [
     officeCount: 2,
     color: "#10b981",
     offices: [
-      { id: "m1", name: "مكتب جدة", city: "جدة", position: [21.4858, 39.1925], phone: "012-123-4567", hours: "9:00 ص - 11:00 م", services: ["مبيعات", "استشارات"], address: "شارع التحلية، جدة", images: ["🏪", "📸", "🌊"] },
-      { id: "m2", name: "مكتب مكة", city: "مكة", position: [21.3891, 39.8579], phone: "012-234-5678", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة"], address: "حي العزيزية، مكة", images: ["🏪", "📸"] },
+      { id: "m1", name: "مكتب جدة", city: "جدة", position: [21.4858, 39.1925], phone: "012-123-4567", hours: "9:00 ص - 11:00 م", services: ["مبيعات", "استشارات"], address: "شارع التحلية، جدة", images: ["/images/offices/placeholder.webp"] },
+      { id: "m2", name: "مكتب مكة", city: "مكة", position: [21.3891, 39.8579], phone: "012-234-5678", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة"], address: "حي العزيزية، مكة", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -71,7 +72,7 @@ const regions: Region[] = [
     officeCount: 1,
     color: "#34d399",
     offices: [
-      { id: "md1", name: "مكتب المدينة", city: "المدينة المنورة", position: [24.5247, 39.5692], phone: "014-123-4567", hours: "8:00 ص - 9:00 م", services: ["مبيعات"], address: "طريق الملك عبدالله، المدينة", images: ["🏪", "📸"] },
+      { id: "md1", name: "مكتب المدينة", city: "المدينة المنورة", position: [24.5247, 39.5692], phone: "014-123-4567", hours: "8:00 ص - 9:00 م", services: ["مبيعات"], address: "طريق الملك عبدالله، المدينة", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -82,8 +83,8 @@ const regions: Region[] = [
     officeCount: 2,
     color: "#10b981",
     offices: [
-      { id: "e1", name: "مكتب الدمام", city: "الدمام", position: [26.3927, 50.0916], phone: "013-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الدمام", images: ["🏪", "📸", "🌊"] },
-      { id: "e2", name: "مكتب الخبر", city: "الخبر", position: [26.28, 50.22], phone: "013-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات"], address: "الخبر الشمالية، الخبر", images: ["🏪", "📸"] },
+      { id: "e1", name: "مكتب الدمام", city: "الدمام", position: [26.3927, 50.0916], phone: "013-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الدمام", images: ["/images/offices/placeholder.webp"] },
+      { id: "e2", name: "مكتب الخبر", city: "الخبر", position: [26.28, 50.22], phone: "013-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات"], address: "الخبر الشمالية، الخبر", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -94,7 +95,7 @@ const regions: Region[] = [
     officeCount: 1,
     color: "#34d399",
     offices: [
-      { id: "a1", name: "مكتب أبها", city: "أبها", position: [18.2164, 42.5053], phone: "017-123-4567", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "جبل السودة، أبها", images: ["🏪", "📸", "⛰️"] },
+      { id: "a1", name: "مكتب أبها", city: "أبها", position: [18.2164, 42.5053], phone: "017-123-4567", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "جبل السودة، أبها", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -114,7 +115,7 @@ const regions: Region[] = [
     officeCount: 1,
     color: "#34d399",
     offices: [
-      { id: "h1", name: "مكتب حائل", city: "حائل", position: [27.5114, 41.7208], phone: "016-123-4567", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "وسط المدينة، حائل", images: ["🏪", "📸"] },
+      { id: "h1", name: "مكتب حائل", city: "حائل", position: [27.5114, 41.7208], phone: "016-123-4567", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "وسط المدينة، حائل", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -125,7 +126,7 @@ const regions: Region[] = [
     officeCount: 1,
     color: "#34d399",
     offices: [
-      { id: "q1", name: "مكتب القصيم", city: "بريدة", position: [26.3331, 43.9714], phone: "016-234-5678", hours: "8:00 ص - 9:00 م", services: ["مبيعات", "صيانة"], address: "شارع الملك سعود، بريدة", images: ["🏪", "📸"] },
+      { id: "q1", name: "مكتب القصيم", city: "بريدة", position: [26.3331, 43.9714], phone: "016-234-5678", hours: "8:00 ص - 9:00 م", services: ["مبيعات", "صيانة"], address: "شارع الملك سعود، بريدة", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -163,7 +164,7 @@ const regions: Region[] = [
     officeCount: 1,
     color: "#34d399",
     offices: [
-      { id: "b1", name: "مكتب الباحة", city: "الباحة", position: [20.0129, 41.4667], phone: "017-234-5678", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "حي البلد، الباحة", images: ["🏪", "📸"] },
+      { id: "b1", name: "مكتب الباحة", city: "الباحة", position: [20.0129, 41.4667], phone: "017-234-5678", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "حي البلد، الباحة", images: ["/images/offices/placeholder.webp"] },
     ],
   },
   {
@@ -186,7 +187,7 @@ const mainOffice = {
   hours: "8:00 ص - 10:00 م",
   services: ["مبيعات", "صيانة", "استشارات", "دعم فني"],
   address: "شارع جمال عبدالناصر، الإسكندرية",
-  images: ["🏢", "📸", "🌊", "🏛️"],
+  images: ["/images/offices/main-1.webp", "/images/offices/main-2.webp"],
 };
 
 // ─── Icons ───
@@ -293,7 +294,18 @@ function OfficeSidebar({ office, onBack, onClose }: { office: Office | typeof ma
         <div className="image-gallery">
           {office.images.map((img, idx) => (
             <div key={idx} className="gallery-item">
-              <span className="gallery-emoji">{img}</span>
+              <Image
+                src={img}
+                alt={`صورة ${idx + 1} - ${office.name}`}
+                width={100}
+                height={100}
+                className="gallery-image"
+                loading={idx === 0 ? "eager" : "lazy"}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = "/images/offices/placeholder.webp";
+                }}
+              />
             </div>
           ))}
         </div>
@@ -389,27 +401,23 @@ export default function MyMap() {
     setFlyTrigger((prev) => prev + 1);
   };
 
-  // 🔥 ضغطة على المحافظة → Sidebar يعرض قائمة المكاتب
   const handleRegionClick = (region: Region) => {
     setSelectedRegion(region);
     setSelectedOffice(null);
     triggerFlyTo(region.position, 8);
   };
 
-  // 🔥 ضغطة على مكتب → Sidebar يعرض تفاصيل المكتب
   const handleOfficeClick = (office: Office) => {
     setSelectedOffice(office);
     triggerFlyTo(office.position, 14);
   };
 
-  // 🔥 ضغطة على المقر الرئيسي
   const handleMainOfficeClick = () => {
     setSelectedRegion(null);
     setSelectedOffice(mainOffice);
     triggerFlyTo(mainOffice.position, 14);
   };
 
-  // 🔥 رجوع من تفاصيل المكتب لقائمة المكاتب
   const handleBackToRegion = () => {
     setSelectedOffice(null);
     if (selectedRegion) {
@@ -417,13 +425,11 @@ export default function MyMap() {
     }
   };
 
-  // 🔥 إغلاق Sidebar
   const handleCloseSidebar = () => {
     setSelectedRegion(null);
     setSelectedOffice(null);
   };
 
-  // تحديد إيه اللي يظهر في الـ Sidebar
   const renderSidebar = () => {
     if (selectedOffice) {
       return (
@@ -448,7 +454,6 @@ export default function MyMap() {
 
   return (
     <div className="map-page">
-      {/* Header */}
       <div className="map-header">
         <h1>🌍 فروعنا في الوطن العربي</h1>
         <p>
@@ -459,7 +464,6 @@ export default function MyMap() {
       </div>
 
       <div className="map-layout">
-        {/* Filters Bar */}
         <div className="filters-bar">
           <button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>
             الكل
@@ -472,9 +476,7 @@ export default function MyMap() {
           </button>
         </div>
 
-        {/* Content: Map + Sidebar */}
         <div className="content-area">
-          {/* Map */}
           <div className="map-container">
             <MapContainer
               center={[24.0, 45.0]}
@@ -498,7 +500,6 @@ export default function MyMap() {
                 />
               )}
 
-              {/* Main Office */}
               <Marker
                 position={mainOffice.position}
                 icon={mainIcon}
@@ -509,7 +510,6 @@ export default function MyMap() {
                 </Tooltip>
               </Marker>
 
-              {/* Regions */}
               {filteredRegions.map((region) => (
                 <Marker
                   key={region.id}
@@ -523,7 +523,6 @@ export default function MyMap() {
                 </Marker>
               ))}
 
-              {/* Individual Offices (when region selected) */}
               {selectedRegion?.offices.map((office) => (
                 <Marker
                   key={office.id}
@@ -539,7 +538,6 @@ export default function MyMap() {
             </MapContainer>
           </div>
 
-          {/* Sidebar */}
           {renderSidebar()}
         </div>
       </div>
