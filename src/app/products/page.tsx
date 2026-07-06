@@ -2,7 +2,7 @@ import { getAllProducts } from "@/lib/firestore/products";
 import Image from "next/image";
 import Link from "next/link";
 
-export const runtime = 'edge';  // ← غيّر من edge لـ nodejs
+
 
 
 
