@@ -34,8 +34,58 @@ interface Region {
   position: [number, number];
   officeCount: number;
   offices: Office[];
-  color: string;
 }
+
+// ─── Colors (Axis Identity) ───
+const COLORS = {
+  primary: "#4a62d6",
+  primaryDark: "#3a4fb0",
+  primaryLight: "#eef1fc",
+  muted: "#94a3b8",
+};
+
+// ─── Axis Logo SVG (حرف A) ───
+const axisLogoSVG = `
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M12 2L2 22H6.5L8.5 17H15.5L17.5 22H22L12 2ZM10 13L12 8L14 13H10Z" fill="white"/>
+</svg>
+`;
+
+// ─── Icons (Axis Identity - كلهم نفس الشكل) ───
+
+// المقر الرئيسي (مصر) — نفس الشكل بس أكبر شوية
+const mainIcon = L.divIcon({
+  className: "custom-main-icon",
+  html: `<div class="axis-pin axis-pin-main">
+    <div class="axis-pin-inner">${axisLogoSVG}</div>
+  </div>`,
+  iconSize: [48, 48],
+  iconAnchor: [24, 48],
+  popupAnchor: [0, -48],
+});
+
+// الفروع (المناطق) — نفس الشكل
+const createRegionIcon = (count: number) => L.divIcon({
+  className: "custom-region-icon",
+  html: `<div class="axis-pin axis-pin-region">
+    <div class="axis-pin-inner">${axisLogoSVG}</div>
+    ${count > 0 ? `<span class="axis-pin-count">${count}</span>` : ""}
+  </div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 40],
+  popupAnchor: [0, -40],
+});
+
+// المكاتب الفرعية — نفس الشكل أصغر
+const officeIcon = L.divIcon({
+  className: "custom-office-icon",
+  html: `<div class="axis-pin axis-pin-office">
+    <div class="axis-pin-inner">${axisLogoSVG}</div>
+  </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
 
 // ─── Data ───
 const regions: Region[] = [
@@ -45,7 +95,6 @@ const regions: Region[] = [
     city: "الرياض",
     position: [24.7136, 46.6753],
     officeCount: 3,
-    color: "#059669",
     offices: [
       { id: "r1", name: "المكتب الرئيسي - الرياض", city: "الرياض", position: [24.7136, 46.6753], phone: "011-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الرياض", images: ["/images/offices/placeholder.webp"] },
       { id: "r2", name: "مكتب الرياض الجنوبي", city: "الرياض", position: [24.65, 46.72], phone: "011-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "حي العزيزية، الرياض", images: ["/images/offices/placeholder.webp"] },
@@ -58,7 +107,6 @@ const regions: Region[] = [
     city: "جدة",
     position: [21.4858, 39.1925],
     officeCount: 2,
-    color: "#10b981",
     offices: [
       { id: "m1", name: "مكتب جدة", city: "جدة", position: [21.4858, 39.1925], phone: "012-123-4567", hours: "9:00 ص - 11:00 م", services: ["مبيعات", "استشارات"], address: "شارع التحلية، جدة", images: ["/images/offices/placeholder.webp"] },
       { id: "m2", name: "مكتب مكة", city: "مكة", position: [21.3891, 39.8579], phone: "012-234-5678", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة"], address: "حي العزيزية، مكة", images: ["/images/offices/placeholder.webp"] },
@@ -70,7 +118,6 @@ const regions: Region[] = [
     city: "المدينة",
     position: [24.5247, 39.5692],
     officeCount: 1,
-    color: "#34d399",
     offices: [
       { id: "md1", name: "مكتب المدينة", city: "المدينة المنورة", position: [24.5247, 39.5692], phone: "014-123-4567", hours: "8:00 ص - 9:00 م", services: ["مبيعات"], address: "طريق الملك عبدالله، المدينة", images: ["/images/offices/placeholder.webp"] },
     ],
@@ -81,7 +128,6 @@ const regions: Region[] = [
     city: "الدمام",
     position: [26.3927, 50.0916],
     officeCount: 2,
-    color: "#10b981",
     offices: [
       { id: "e1", name: "مكتب الدمام", city: "الدمام", position: [26.3927, 50.0916], phone: "013-123-4567", hours: "8:00 ص - 10:00 م", services: ["مبيعات", "صيانة", "استشارات"], address: "طريق الملك فهد، الدمام", images: ["/images/offices/placeholder.webp"] },
       { id: "e2", name: "مكتب الخبر", city: "الخبر", position: [26.28, 50.22], phone: "013-234-5678", hours: "9:00 ص - 9:00 م", services: ["مبيعات"], address: "الخبر الشمالية، الخبر", images: ["/images/offices/placeholder.webp"] },
@@ -93,7 +139,6 @@ const regions: Region[] = [
     city: "أبها",
     position: [18.2164, 42.5053],
     officeCount: 1,
-    color: "#34d399",
     offices: [
       { id: "a1", name: "مكتب أبها", city: "أبها", position: [18.2164, 42.5053], phone: "017-123-4567", hours: "9:00 ص - 9:00 م", services: ["مبيعات", "توصيل"], address: "جبل السودة، أبها", images: ["/images/offices/placeholder.webp"] },
     ],
@@ -104,7 +149,6 @@ const regions: Region[] = [
     city: "تبوك",
     position: [28.3835, 36.5662],
     officeCount: 0,
-    color: "#d1d5db",
     offices: [],
   },
   {
@@ -113,7 +157,6 @@ const regions: Region[] = [
     city: "حائل",
     position: [27.5114, 41.7208],
     officeCount: 1,
-    color: "#34d399",
     offices: [
       { id: "h1", name: "مكتب حائل", city: "حائل", position: [27.5114, 41.7208], phone: "016-123-4567", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "وسط المدينة، حائل", images: ["/images/offices/placeholder.webp"] },
     ],
@@ -124,7 +167,6 @@ const regions: Region[] = [
     city: "بريدة",
     position: [26.3331, 43.9714],
     officeCount: 1,
-    color: "#34d399",
     offices: [
       { id: "q1", name: "مكتب القصيم", city: "بريدة", position: [26.3331, 43.9714], phone: "016-234-5678", hours: "8:00 ص - 9:00 م", services: ["مبيعات", "صيانة"], address: "شارع الملك سعود، بريدة", images: ["/images/offices/placeholder.webp"] },
     ],
@@ -135,7 +177,6 @@ const regions: Region[] = [
     city: "نجران",
     position: [17.5656, 44.2289],
     officeCount: 0,
-    color: "#d1d5db",
     offices: [],
   },
   {
@@ -144,7 +185,6 @@ const regions: Region[] = [
     city: "سكاكا",
     position: [29.9652, 40.2064],
     officeCount: 0,
-    color: "#d1d5db",
     offices: [],
   },
   {
@@ -153,7 +193,6 @@ const regions: Region[] = [
     city: "جازان",
     position: [16.8894, 42.5706],
     officeCount: 0,
-    color: "#d1d5db",
     offices: [],
   },
   {
@@ -162,7 +201,6 @@ const regions: Region[] = [
     city: "الباحة",
     position: [20.0129, 41.4667],
     officeCount: 1,
-    color: "#34d399",
     offices: [
       { id: "b1", name: "مكتب الباحة", city: "الباحة", position: [20.0129, 41.4667], phone: "017-234-5678", hours: "8:00 ص - 8:00 م", services: ["مبيعات"], address: "حي البلد، الباحة", images: ["/images/offices/placeholder.webp"] },
     ],
@@ -173,7 +211,6 @@ const regions: Region[] = [
     city: "عرعر",
     position: [30.985, 41.0384],
     officeCount: 0,
-    color: "#d1d5db",
     offices: [],
   },
 ];
@@ -190,35 +227,6 @@ const mainOffice = {
   images: ["/images/offices/main-1.webp", "/images/offices/main-2.webp"],
 };
 
-// ─── Icons ───
-const mainIcon = L.divIcon({
-  className: "custom-main-icon",
-  html: `<div class="main-pin"><div class="main-pin-inner">🏢</div></div>`,
-  iconSize: [44, 44],
-  iconAnchor: [22, 44],
-  popupAnchor: [0, -44],
-});
-
-const createRegionIcon = (color: string, count: number) => L.divIcon({
-  className: "custom-region-icon",
-  html: `<div class="region-pin" style="--pin-color: ${color}">
-    <div class="region-pin-inner" style="background: ${color}">
-      ${count > 0 ? `<span class="region-count">${count}</span>` : ""}
-    </div>
-  </div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -36],
-});
-
-const officeIcon = L.divIcon({
-  className: "custom-office-icon",
-  html: `<div class="office-pin"><div class="office-pin-inner">📍</div></div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 28],
-  popupAnchor: [0, -28],
-});
-
 // ─── FlyTo Component ───
 function FlyToLocation({ position, zoom, trigger }: { position: [number, number]; zoom: number; trigger: number }) {
   const map = useMap();
@@ -232,7 +240,7 @@ function FlyToLocation({ position, zoom, trigger }: { position: [number, number]
 function RegionSidebar({ region, onOfficeClick, onClose }: { region: Region; onOfficeClick: (office: Office) => void; onClose: () => void }) {
   return (
     <div className="sidebar">
-      <div className="sidebar-header" style={{ background: region.color }}>
+      <div className="sidebar-header" style={{ background: COLORS.primary }}>
         <button className="close-btn" onClick={onClose}>✕</button>
         <span className="sidebar-badge">{region.name}</span>
       </div>
@@ -281,7 +289,7 @@ function OfficeSidebar({ office, onBack, onClose }: { office: Office | typeof ma
 
   return (
     <div className="sidebar">
-      <div className="sidebar-header" style={{ background: isMain ? "#dc2626" : "#3b82f6" }}>
+      <div className="sidebar-header" style={{ background: isMain ? COLORS.primaryDark : COLORS.primary }}>
         <div className="sidebar-header-buttons">
           <button className="back-btn" onClick={onBack}>← رجوع</button>
           <button className="close-btn" onClick={onClose}>✕</button>
@@ -505,7 +513,7 @@ export default function MyMap() {
                 icon={mainIcon}
                 eventHandlers={{ click: handleMainOfficeClick }}
               >
-                <Tooltip direction="top" offset={[0, -44]} className="tooltip-main">
+                <Tooltip direction="top" offset={[0, -48]} className="tooltip-main">
                   <span>🏢 {mainOffice.name} (اضغط للتفاصيل)</span>
                 </Tooltip>
               </Marker>
@@ -514,10 +522,10 @@ export default function MyMap() {
                 <Marker
                   key={region.id}
                   position={region.position}
-                  icon={createRegionIcon(region.color, region.officeCount)}
+                  icon={createRegionIcon(region.officeCount)}
                   eventHandlers={{ click: () => handleRegionClick(region) }}
                 >
-                  <Tooltip direction="top" offset={[0, -36]} className="tooltip-region">
+                  <Tooltip direction="top" offset={[0, -40]} className="tooltip-region">
                     <span>{region.name} ({region.officeCount} مكتب) - اضغط لعرض المكاتب</span>
                   </Tooltip>
                 </Marker>
@@ -530,7 +538,7 @@ export default function MyMap() {
                   icon={officeIcon}
                   eventHandlers={{ click: () => handleOfficeClick(office) }}
                 >
-                  <Tooltip direction="top" offset={[0, -28]} className="tooltip-office">
+                  <Tooltip direction="top" offset={[0, -32]} className="tooltip-office">
                     <span>📍 {office.name} (اضغط للتفاصيل)</span>
                   </Tooltip>
                 </Marker>

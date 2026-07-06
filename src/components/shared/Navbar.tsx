@@ -3,6 +3,7 @@
 import { useState, createElement } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const PORTFOLIO_PDF_URL =
   "https://res.cloudinary.com/yrltdsrw/image/upload/fl_attachment/v1782983729/Final_2023_m9yztd.pdf";
@@ -23,7 +24,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-white border-b border-stone-200 sticky top-0 z-[9999]">
+    <nav className="sticky top-0 z-[9999] backdrop-blur-md bg-surface-raised/80 border-b border-border">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div className="relative flex items-center justify-between h-20">
           <Link
@@ -44,7 +45,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-stone-700 hover:text-amber-700 transition-colors font-medium"
+                className="text-text-secondary hover:text-primary transition-colors font-medium"
               >
                 {link.label}
               </Link>
@@ -52,52 +53,56 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-4">
+            <ThemeToggle />
             {createElement(
               "a",
               {
                 ...portfolioLinkProps,
                 className:
-                  "text-stone-700 hover:text-amber-700 transition-colors font-medium border border-stone-300 hover:border-amber-700 px-4 py-2 rounded-full",
+                  "text-text-secondary hover:text-primary transition-colors font-medium border border-border hover:border-primary px-4 py-2 rounded-full",
               },
               "البورتفوليو"
             )}
             <Link
               href="/#consultation"
-              className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2.5 rounded-full font-medium transition-colors"
+              className="bg-primary-dark hover:bg-primary-darker text-white px-5 py-2.5 rounded-full font-medium transition-colors"
             >
               احجز استشارة
             </Link>
           </div>
 
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="md:hidden text-stone-900"
-            aria-label="فتح القائمة"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-7 h-7"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="text-text-primary"
+              aria-label="فتح القائمة"
             >
-              {menuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              )}
-            </svg>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-7 h-7"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                {menuOpen ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                )}
+              </svg>
+            </button>
+          </div>
         </div>
 
         {menuOpen && (
@@ -107,7 +112,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-stone-700 hover:text-amber-700 transition-colors font-medium"
+                className="text-text-secondary hover:text-primary transition-colors font-medium"
               >
                 {link.label}
               </Link>
@@ -118,14 +123,14 @@ export default function Navbar() {
                 ...portfolioLinkProps,
                 onClick: () => setMenuOpen(false),
                 className:
-                  "text-stone-700 hover:text-amber-700 transition-colors font-medium border border-stone-300 px-5 py-2.5 rounded-full text-center",
+                  "text-text-secondary hover:text-primary transition-colors font-medium border border-border px-5 py-2.5 rounded-full text-center",
               },
               "البورتفوليو"
             )}
             <Link
               href="/#consultation"
               onClick={() => setMenuOpen(false)}
-              className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2.5 rounded-full font-medium transition-colors text-center"
+              className="bg-primary-dark hover:bg-primary-darker text-white px-5 py-2.5 rounded-full font-medium transition-colors text-center"
             >
               احجز استشارة
             </Link>

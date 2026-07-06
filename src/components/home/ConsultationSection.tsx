@@ -42,52 +42,52 @@ export default function ConsultationSection() {
   };
 
   return (
-    <section id="consultation" className="bg-stone-900 py-16 px-6 md:px-12">
+    <section id="consultation" className="bg-primary-darker py-16 px-6 md:px-12">
       <div className="max-w-2xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-semibold text-white mb-3">
+        <h2 className="text-3xl md:text-4xl font-semibold text-text-on-primary mb-3">
           احجز استشارة مجانية
         </h2>
-        <p className="text-stone-400 mb-10">
+        <p className="text-text-muted mb-10">
           املأ البيانات وهنتواصل معاك في أقرب وقت
         </p>
 
         {success && (
-          <div className="mb-6 bg-green-800/30 border border-green-700 text-green-300 px-4 py-3 rounded-xl">
+          <div className="mb-6 bg-success/20 border border-success text-success px-4 py-3 rounded-xl">
             تم إرسال طلبك بنجاح! هنتواصل معاك قريبًا.
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="text-right space-y-4">
           <div>
-            <label className="block text-stone-300 text-sm mb-1">الاسم</label>
+            <label className="block text-text-secondary text-sm mb-1">الاسم</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl bg-stone-800 text-white border border-stone-700 focus:outline-none focus:border-amber-700"
+              className="w-full px-4 py-3 rounded-xl bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
               placeholder="اسمك بالكامل"
             />
           </div>
 
           <div>
-            <label className="block text-stone-300 text-sm mb-1">رقم الهاتف</label>
+            <label className="block text-text-secondary text-sm mb-1">رقم الهاتف</label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl bg-stone-800 text-white border border-stone-700 focus:outline-none focus:border-amber-700"
+              className="w-full px-4 py-3 rounded-xl bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
               placeholder="01xxxxxxxxx"
             />
           </div>
 
           <div>
-            <label className="block text-stone-300 text-sm mb-1">نوع الخدمة</label>
+            <label className="block text-text-secondary text-sm mb-1">نوع الخدمة</label>
             <select
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-stone-800 text-white border border-stone-700 focus:outline-none focus:border-amber-700"
+              className="w-full px-4 py-3 rounded-xl bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
             >
               <option value="تصميم داخلي">تصميم داخلي</option>
               <option value="تصميم معماري">تصميم معماري</option>
@@ -97,14 +97,14 @@ export default function ConsultationSection() {
           </div>
 
           <div>
-            <label className="block text-stone-300 text-sm mb-1">
+            <label className="block text-text-secondary text-sm mb-1">
               تفاصيل إضافية (اختياري)
             </label>
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 rounded-xl bg-stone-800 text-white border border-stone-700 focus:outline-none focus:border-amber-700"
+              className="w-full px-4 py-3 rounded-xl bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
               placeholder="اكتب أي تفاصيل تساعدنا نفهم طلبك أكتر"
             />
           </div>
@@ -112,7 +112,7 @@ export default function ConsultationSection() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white py-3 rounded-full font-medium transition-colors"
+            className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-3 rounded-full font-medium transition-colors"
           >
             {loading ? "جاري الإرسال..." : "إرسال الطلب"}
           </button>
