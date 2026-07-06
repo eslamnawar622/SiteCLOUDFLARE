@@ -2,6 +2,10 @@ import { getAllProducts } from "@/lib/firestore/products";
 import Image from "next/image";
 import Link from "next/link";
 
+export const runtime = 'nodejs';  // ← غيّر من edge لـ nodejs
+
+
+
 export default async function AllProductsPage() {
   const products = await getAllProducts();
 

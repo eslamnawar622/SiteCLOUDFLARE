@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = 'edge';
+
 async function generateSHA1(str: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);

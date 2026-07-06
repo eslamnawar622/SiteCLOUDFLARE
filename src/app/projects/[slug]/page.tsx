@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+export const runtime = 'nodejs';  // ✅ صح
+
 export default async function ProjectDetailPage({
   params,
 }: {

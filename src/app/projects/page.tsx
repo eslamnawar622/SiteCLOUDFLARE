@@ -2,6 +2,9 @@ import { getAllProjects } from "@/lib/firestore/projects";
 import Image from "next/image";
 import Link from "next/link";
 
+
+
+
 export default async function AllProjectsPage() {
   const projects = await getAllProjects();
 
