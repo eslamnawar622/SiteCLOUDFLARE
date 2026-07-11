@@ -39,6 +39,7 @@ export default async function RootLayout({
     <html
        lang="ar"
        dir="rtl"
+       data-scroll-behavior="smooth"
        className={`${cairo.variable} ${plexSansArabic.variable} h-full antialiased`}
        suppressHydrationWarning
     >

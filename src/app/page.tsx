@@ -4,6 +4,7 @@ import ProjectsPreview from "@/components/home/ProjectsPreview";
 import ProductsPreview from "@/components/home/ProductsPreview";
 import ClientsSection from "@/components/home/ClientsSection";
 import TeamSection from "@/components/home/TeamSection";
+import ProcessSection from "@/components/home/ProcessSection";
 import ConsultationSection from "@/components/home/ConsultationSection";
 import MapWrapper from "@/components/MapWrapper";
 import { getSettings } from "@/lib/firestore/settings";
@@ -19,6 +20,7 @@ export default async function Home() {
       <ProductsPreview />
       <ClientsSection />
       <TeamSection />
+      <ProcessSection />
       <ConsultationSection />
       <MapWrapper />
     </main>

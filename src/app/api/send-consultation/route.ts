@@ -4,7 +4,8 @@ export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, phone, serviceType, details } = await request.json();
+    const { name, phone, serviceType, details, preferredDay, preferredTime } =
+      await request.json();
 
     if (!name || !phone) {
       return NextResponse.json(
@@ -18,6 +19,7 @@ export async function POST(request: NextRequest) {
 👤 الاسم: ${name}
 📱 الهاتف: ${phone}
 🛠️ نوع الخدمة: ${serviceType}
+${preferredDay || preferredTime ? `🕒 الوقت المفضل: ${preferredDay || "أي يوم"} ${preferredTime ? `- ${preferredTime}` : ""}` : ""}
 ${details ? `📝 تفاصيل: ${details}` : ""}`;
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;

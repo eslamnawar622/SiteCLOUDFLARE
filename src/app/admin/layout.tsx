@@ -12,6 +12,8 @@ const navItems = [
   { href: "/admin/hero-text", label: "📝 نص الهيرو", id: "hero-text" },
   { href: "/admin/clients", label: "👥 العملاء", id: "clients" },
   { href: "/admin/offers", label: "🎯 العروض", id: "offers" },
+  { href: "/admin/service-types", label: "🧩 أنواع الخدمات", id: "service-types" },
+  { href: "/admin/process", label: "🧭 مراحل العمل", id: "process" },
   { href: "/admin/settings", label: "⚙️ الإعدادات", id: "settings" },
 ];
 
