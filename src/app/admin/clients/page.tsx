@@ -178,7 +178,7 @@ export default function AdminClientsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-6">
+       <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-text-primary mb-8">
         إدارة العملاء
       </h1>

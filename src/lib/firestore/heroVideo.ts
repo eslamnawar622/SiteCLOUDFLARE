@@ -4,8 +4,9 @@ import { db } from "@/lib/firebase";
 export interface HeroVideoData {
   desktopVideoUrl: string;
   mobileVideoUrl: string;
-  desktopPosterFrame?: number; // ✅ فريم غلاف اللاب (بالثواني)
-  mobilePosterFrame?: number;  // ✅ فريم غلاف الموبايل (بالثواني)
+  desktopPosterFrame?: number;
+  mobilePosterFrame?: number;
+  offerBadgeText?: string; // ✅ نص الشريط الجانبي
   updatedAt?: number;
 }
 
@@ -33,13 +34,13 @@ export function subscribeToHeroVideo(
   });
 }
 
-// ✅ حذف حقل من Firestore
 export async function clearHeroVideoField(
   field:
     | "desktopVideoUrl"
     | "mobileVideoUrl"
     | "desktopPosterFrame"
     | "mobilePosterFrame"
+    | "offerBadgeText"
 ): Promise<void> {
   await setDoc(
     HERO_DOC_REF,

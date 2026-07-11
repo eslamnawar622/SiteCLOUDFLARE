@@ -6,6 +6,7 @@ import Footer from "@/components/shared/Footer";
 import SocialSidebar from "@/components/shared/SocialSidebar";
 import MotionProvider from "@/components/shared/MotionProvider";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { getSettings } from "@/lib/firestore/settings";
 
 // عناوين — خط هندسي حاسم يتماشى مع شكل اللوجو المثلثي
 const cairo = Cairo({
@@ -26,11 +27,14 @@ export const metadata: Metadata = {
   description: "Axis Design Studio — تصميم داخلي وهندسة معمارية",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // جلب الإعدادات (اللوجو وغيره) من السيرفر عشان تظهر فورًا من غير فلاش
+  const settings = await getSettings();
+
   return (
     <html
        lang="ar"
@@ -41,7 +45,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider>
           <MotionProvider>
-            <Navbar />
+            <Navbar initialData={settings} />
             <SocialSidebar />
             <div className="flex-1">{children}</div>
             <Footer />

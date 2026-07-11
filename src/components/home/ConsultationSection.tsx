@@ -6,7 +6,15 @@ export default function ConsultationSection() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [serviceType, setServiceType] = useState("تصميم داخلي");
-  const [details, setDetails] = useState("");
+
+  // ✅ نجيب قيمة العرض من الرابط عند أول تحميل، ونستخدمها كقيمة ابتدائية مباشرة
+  const [details, setDetails] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    const offer = params.get("offer");
+    return offer ? `مهتم بعرض: ${offer}` : "";
+  });
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 

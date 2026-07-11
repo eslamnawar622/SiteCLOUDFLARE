@@ -1,101 +1,99 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  getHeroText,
-  updateHeroText,
-  HeroButton,
-  HeroTextData,
-} from "@/lib/firestore/heroText";
+import { getSettings, updateSettings, HeroButton } from "@/lib/firestore/settings";
 
-// قائمة الصفحات والأقسام المتاحة في الموقع، تختار منها بدل ما تكتب رابط بإيدك
 const LINK_OPTIONS = [
-  { value: "/", label: "الرئيسية" },
-  { value: "/#consultation", label: "قسم الاستشارة" },
-  { value: "/#offers", label: "قسم العروض" },
-  { value: "/#clients", label: "قسم شركاء النجاح" },
-  { value: "/products", label: "صفحة المنتجات" },
-  { value: "/projects", label: "صفحة المشاريع" },
-
+  { label: "الرئيسية", value: "/" },
+  { label: "المشاريع", value: "/projects" },
+  { label: "المنتجات", value: "/products" },
+  { label: "قسم الاستشارة", value: "/#consultation" },
+  { label: "قسم العروض", value: "/#offers" },
+  { label: "شركاء النجاح", value: "/#clients" },
+  { label: "رابط مخصص", value: "custom" },
 ];
 
-// قيم افتراضية لو Firestore فاضي (أول مرة)
-const DEFAULT_DATA: HeroTextData = {
-  title: "Axis Design Studio",
-  subtitle: "نحول رؤيتك إلى واقع",
-  description: "تصميم داخلي · معماري · ديكور · في مصر والسعودية والإمارات",
-  buttons: [
-    {
-      id: "btn-1",
-      text: "احجز استشارة مجانية",
-      link: "/#consultation",
-      style: "primary",
-    },
-    {
-      id: "btn-2",
-      text: "شوف أعمالنا",
-      link: "/projects",
-      style: "secondary",
-    },
-  ],
-};
+const STYLE_OPTIONS = [
+  { label: "أساسي (معبّى بالأزرق)", value: "primary" },
+  { label: "ثانوي (شفاف بحدود)", value: "secondary" },
+];
+
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
 
 export default function AdminHeroTextPage() {
-  const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [buttons, setButtons] = useState<HeroButton[]>([]);
+  const [heroTitle, setHeroTitle] = useState("");
+  const [heroSubtitle, setHeroSubtitle] = useState("");
+  const [heroDescription, setHeroDescription] = useState("");
+  const [heroOfferBadgeText, setHeroOfferBadgeText] = useState("عرض حالي");
+  const [heroButtons, setHeroButtons] = useState<HeroButton[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
-      setLoading(true);
-      const data = await getHeroText();
-      const source = data || DEFAULT_DATA;
-      setTitle(source.title);
-      setSubtitle(source.subtitle);
-      setDescription(source.description);
-      setButtons(source.buttons || []);
+      const data = await getSettings();
+      if (data) {
+        setHeroTitle(data.heroTitle || "");
+        setHeroSubtitle(data.heroSubtitle || "");
+        setHeroDescription(data.heroDescription || "");
+        setHeroOfferBadgeText(data.heroOfferBadgeText || "عرض حالي");
+        setHeroButtons(data.heroButtons || []);
+      }
       setLoading(false);
     }
     load();
   }, []);
 
-  function handleAddButton() {
-    const newButton: HeroButton = {
-      id: `btn-${Date.now()}`,
-      text: "زرار جديد",
-      link: "/",
-      style: "secondary",
-    };
-    setButtons([...buttons, newButton]);
+  // ─── Buttons Helpers ───
+  function addButton() {
+    setHeroButtons([
+      ...heroButtons,
+      {
+        id: `btn-${Date.now()}`,
+        text: "زرار جديد",
+        link: "/",
+        linkType: "/",
+        style: "primary",
+      },
+    ]);
   }
 
-  function handleDeleteButton(id: string) {
+  function updateButton(index: number, field: keyof HeroButton, value: string) {
+    const newButtons = [...heroButtons];
+    newButtons[index] = { ...newButtons[index], [field]: value };
+    if (field === "linkType") {
+      newButtons[index].link = value === "custom" ? "" : value;
+    }
+    setHeroButtons(newButtons);
+  }
+
+  function removeButton(index: number) {
     const confirmed = confirm("متأكد إنك عايز تمسح الزرار ده؟");
     if (!confirmed) return;
-    setButtons(buttons.filter((b) => b.id !== id));
-  }
-
-  function handleButtonChange(
-    id: string,
-    field: keyof HeroButton,
-    value: string
-  ) {
-    setButtons(
-      buttons.map((b) => (b.id === id ? { ...b, [field]: value } : b))
-    );
+    setHeroButtons(heroButtons.filter((_, i) => i !== index));
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      await updateHeroText({ title, subtitle, description, buttons });
-      alert("تم الحفظ بنجاح ✅");
+      await updateSettings({
+        heroTitle: heroTitle.trim(),
+        heroSubtitle: heroSubtitle.trim(),
+        heroDescription: heroDescription.trim(),
+        heroOfferBadgeText: heroOfferBadgeText.trim() || "عرض حالي",
+        heroButtons,
+      });
+      alert("✅ تم الحفظ بنجاح");
     } catch (error) {
       console.error(error);
-      alert("فشل الحفظ");
+      alert("❌ فشل الحفظ");
     } finally {
       setSaving(false);
     }
@@ -110,17 +108,17 @@ export default function AdminHeroTextPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-12 px-6 space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div>
         <h1 className="text-2xl font-bold text-text-primary mb-2">
-          إدارة نصوص الهيرو
+          📝 إدارة نصوص الهيرو
         </h1>
         <p className="text-text-muted text-sm">
           عدّل العنوان والوصف وزراير القسم الرئيسي في أول الموقع
         </p>
       </div>
 
-      {/* العنوان */}
+      {/* العنوان والوصف */}
       <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
         <div>
           <label className="block text-text-secondary text-sm mb-2">
@@ -128,8 +126,9 @@ export default function AdminHeroTextPage() {
           </label>
           <input
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={heroTitle}
+            onChange={(e) => setHeroTitle(e.target.value)}
+            placeholder="Axis Design Studio"
             className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-text-primary"
           />
         </div>
@@ -140,8 +139,9 @@ export default function AdminHeroTextPage() {
           </label>
           <input
             type="text"
-            value={subtitle}
-            onChange={(e) => setSubtitle(e.target.value)}
+            value={heroSubtitle}
+            onChange={(e) => setHeroSubtitle(e.target.value)}
+            placeholder="نحول رؤيتك إلى واقع"
             className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-text-primary"
           />
         </div>
@@ -151,37 +151,55 @@ export default function AdminHeroTextPage() {
             الوصف
           </label>
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={heroDescription}
+            onChange={(e) => setHeroDescription(e.target.value)}
             rows={2}
+            placeholder="تصميم داخلي · معماري · ديكور · في مصر والسعودية والإمارات"
             className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-text-primary resize-none"
           />
         </div>
+      </div>
+
+      {/* نص الشريط الجانبي (Badge) */}
+      <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+          🏷️ نص الشريط الجانبي (Badge)
+        </h2>
+        <p className="text-text-muted text-xs">
+          الجملة اللي بتظهر على اليمين في الهيرو (الشريط الأزرق العمودي). سيبه فاضي لو مش عايز الشريط يظهر.
+        </p>
+        <input
+          type="text"
+          value={heroOfferBadgeText}
+          onChange={(e) => setHeroOfferBadgeText(e.target.value)}
+          placeholder="عرض حالي"
+          className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-text-primary text-sm"
+        />
       </div>
 
       {/* الأزرار */}
       <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text-primary">
-            الأزرار
+            🔘 الأزرار
           </h2>
           <button
-            onClick={handleAddButton}
+            onClick={addButton}
             className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-full text-sm font-medium transition-colors"
           >
             + إضافة زرار
           </button>
         </div>
 
-        {buttons.length === 0 && (
+        {heroButtons.length === 0 && (
           <p className="text-text-muted text-sm">
             مفيش أزرار دلوقتي. دوس &quot;+ إضافة زرار&quot; عشان تضيف واحد.
           </p>
         )}
 
-        {buttons.map((button, index) => (
+        {heroButtons.map((btn, index) => (
           <div
-            key={button.id}
+            key={btn.id}
             className="border border-border rounded-lg p-4 space-y-3"
           >
             <div className="flex items-center justify-between">
@@ -189,59 +207,53 @@ export default function AdminHeroTextPage() {
                 زرار {index + 1}
               </span>
               <button
-                onClick={() => handleDeleteButton(button.id)}
+                onClick={() => removeButton(index)}
                 className="text-error text-xs hover:underline"
               >
                 🗑️ حذف
               </button>
             </div>
 
+            {/* النص */}
             <div>
               <label className="block text-text-secondary text-xs mb-1">
                 النص
               </label>
               <input
                 type="text"
-                value={button.text}
-                onChange={(e) =>
-                  handleButtonChange(button.id, "text", e.target.value)
-                }
+                value={btn.text}
+                onChange={(e) => updateButton(index, "text", e.target.value)}
                 className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm"
               />
             </div>
 
+            {/* الرابط */}
             <div>
               <label className="block text-text-secondary text-xs mb-1">
                 الرابط
               </label>
-              <select
-                value={
-                  LINK_OPTIONS.some((opt) => opt.value === button.link)
-                    ? button.link
-                    : "custom"
-                }
-                onChange={(e) => {
-                  if (e.target.value !== "custom") {
-                    handleButtonChange(button.id, "link", e.target.value);
-                  }
-                }}
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm mb-2"
-              >
-                {LINK_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-                <option value="custom">🔗 رابط مخصص (اكتبه تحت)</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={btn.linkType}
+                  onChange={(e) => updateButton(index, "linkType", e.target.value)}
+                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm appearance-none cursor-pointer pr-9 mb-2"
+                >
+                  {LINK_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute left-2.5 top-[38%] -translate-y-1/2 pointer-events-none text-text-muted">
+                  <ChevronDownIcon />
+                </div>
+              </div>
 
-              {!LINK_OPTIONS.some((opt) => opt.value === button.link) && (
+              {btn.linkType === "custom" && (
                 <input
                   type="text"
-                  value={button.link}
-                  onChange={(e) =>
-                    handleButtonChange(button.id, "link", e.target.value)
-                  }
+                  value={btn.link}
+                  onChange={(e) => updateButton(index, "link", e.target.value)}
                   placeholder="اكتب الرابط المخصص هنا (مثال: /projects)"
                   className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm"
                   dir="ltr"
@@ -249,20 +261,27 @@ export default function AdminHeroTextPage() {
               )}
             </div>
 
+            {/* الشكل */}
             <div>
               <label className="block text-text-secondary text-xs mb-1">
                 الشكل
               </label>
-              <select
-                value={button.style}
-                onChange={(e) =>
-                  handleButtonChange(button.id, "style", e.target.value)
-                }
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm"
-              >
-                <option value="primary">أساسي (معبّى بالأزرق)</option>
-                <option value="secondary">ثانوي (شفاف بحدود)</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={btn.style}
+                  onChange={(e) => updateButton(index, "style", e.target.value)}
+                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text-primary text-sm appearance-none cursor-pointer pr-9"
+                >
+                  {STYLE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
+                  <ChevronDownIcon />
+                </div>
+              </div>
             </div>
           </div>
         ))}
@@ -273,7 +292,7 @@ export default function AdminHeroTextPage() {
         disabled={saving}
         className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-3 rounded-full font-medium transition-colors"
       >
-        {saving ? "جاري الحفظ..." : "حفظ كل التعديلات"}
+        {saving ? "جاري الحفظ..." : "💾 حفظ كل التعديلات"}
       </button>
     </div>
   );

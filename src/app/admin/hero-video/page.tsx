@@ -1,527 +1,700 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  getHeroVideo,
-  updateHeroVideo,
-  clearHeroVideoField,
-} from "@/lib/firestore/heroVideo";
-import {
-  uploadHeroVideo,
-  deleteFromCloudinary,
-  getPosterFromFrame,
-} from "@/lib/cloudinaryUpload";
+import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
+import { getSettings, updateSettings } from "@/lib/firestore/settings";
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+const CLOUDINARY_ACCOUNT_OPTIONS = [
+  { label: "Cloudinary 1 (لابتوب)", value: "account1" },
+  { label: "Cloudinary 2 (موبايل)", value: "account2" },
+];
+
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
 }
 
-interface CompressionInfo {
-  before: number;
-  after: number;
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+// ─── مكوّن صغير لعرض لينك مع زرار نسخ ───
+function LinkField({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  if (!url) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-text-muted">{label}</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          value={url}
+          onClick={(e) => (e.target as HTMLInputElement).select()}
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-surface text-text-primary text-xs truncate dir-ltr text-left"
+          dir="ltr"
+        />
+        <button
+          onClick={handleCopy}
+          type="button"
+          className={`shrink-0 px-3 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1 ${
+            copied
+              ? "bg-green-50 border-green-300 text-green-600"
+              : "border-border text-text-secondary hover:bg-surface"
+          }`}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? "اتنسخ" : "نسخ"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface PendingVideo {
+  videoUrl: string;
+  publicId: string;
+  duration: number;
+  accountId: string;
+  fileExt: string;
 }
 
 export default function AdminHeroVideoPage() {
-  const [desktopFile, setDesktopFile] = useState<File | null>(null);
-  const [mobileFile, setMobileFile] = useState<File | null>(null);
-  const [desktopPreview, setDesktopPreview] = useState<string | null>(null);
-  const [mobilePreview, setMobilePreview] = useState<string | null>(null);
+  // ─── لابتوب ───
+  const [heroDesktopVideoUrl, setHeroDesktopVideoUrl] = useState("");
+  const [heroDesktopVideoKey, setHeroDesktopVideoKey] = useState("");
+  const [heroDesktopPosterUrl, setHeroDesktopPosterUrl] = useState("");
+  const [heroDesktopPosterKey, setHeroDesktopPosterKey] = useState("");
+  const [heroDesktopAccount, setHeroDesktopAccount] = useState("account1");
+  const [uploadingDesktopTemp, setUploadingDesktopTemp] = useState(false);
+  const [finalizingDesktop, setFinalizingDesktop] = useState(false);
+  const [pendingDesktop, setPendingDesktop] = useState<PendingVideo | null>(null);
+  const [desktopFrame, setDesktopFrame] = useState(0);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const desktopPreviewRef = useRef<HTMLVideoElement>(null);
 
-  const [currentDesktopUrl, setCurrentDesktopUrl] = useState<string | null>(null);
-  const [currentMobileUrl, setCurrentMobileUrl] = useState<string | null>(null);
+  // ─── موبايل ───
+  const [heroMobileVideoUrl, setHeroMobileVideoUrl] = useState("");
+  const [heroMobileVideoKey, setHeroMobileVideoKey] = useState("");
+  const [heroMobilePosterUrl, setHeroMobilePosterUrl] = useState("");
+  const [heroMobilePosterKey, setHeroMobilePosterKey] = useState("");
+  const [heroMobileAccount, setHeroMobileAccount] = useState("account2");
+  const [uploadingMobileTemp, setUploadingMobileTemp] = useState(false);
+  const [finalizingMobile, setFinalizingMobile] = useState(false);
+  const [pendingMobile, setPendingMobile] = useState<PendingVideo | null>(null);
+  const [mobileFrame, setMobileFrame] = useState(0);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
+  const mobilePreviewRef = useRef<HTMLVideoElement>(null);
 
-  const [uploadingDesktop, setUploadingDesktop] = useState(false);
-  const [uploadingMobile, setUploadingMobile] = useState(false);
-  const [deletingDesktop, setDeletingDesktop] = useState(false);
-  const [deletingMobile, setDeletingMobile] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const [desktopCompression, setDesktopCompression] = useState<CompressionInfo | null>(null);
-  const [mobileCompression, setMobileCompression] = useState<CompressionInfo | null>(null);
-
-  // ✅ فريم منفصل لللاب
-  const [desktopPosterFrame, setDesktopPosterFrame] = useState<number>(0);
-  const [savingDesktopFrame, setSavingDesktopFrame] = useState(false);
-
-  // ✅ فريم منفصل للموبايل
-  const [mobilePosterFrame, setMobilePosterFrame] = useState<number>(0);
-  const [savingMobileFrame, setSavingMobileFrame] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function loadCurrent() {
-      setLoading(true);
-      const data = await getHeroVideo();
+    async function load() {
+      const data = await getSettings();
       if (data) {
-        setCurrentDesktopUrl(data.desktopVideoUrl || null);
-        setCurrentMobileUrl(data.mobileVideoUrl || null);
-        setDesktopPosterFrame(data.desktopPosterFrame || 0);
-        setMobilePosterFrame(data.mobilePosterFrame || 0);
+        setHeroDesktopVideoUrl(data.heroDesktopVideoUrl || "");
+        setHeroDesktopVideoKey(data.heroDesktopVideoKey || "");
+        setHeroDesktopPosterUrl(data.heroDesktopPosterUrl || "");
+        setHeroDesktopPosterKey(data.heroDesktopPosterKey || "");
+        setHeroDesktopAccount(data.heroDesktopAccount || "account1");
+
+        setHeroMobileVideoUrl(data.heroMobileVideoUrl || "");
+        setHeroMobileVideoKey(data.heroMobileVideoKey || "");
+        setHeroMobilePosterUrl(data.heroMobilePosterUrl || "");
+        setHeroMobilePosterKey(data.heroMobilePosterKey || "");
+        setHeroMobileAccount(data.heroMobileAccount || "account2");
       }
       setLoading(false);
     }
-
-    loadCurrent();
+    load();
   }, []);
 
-  function handleDesktopFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setDesktopFile(file);
-    setDesktopPreview(file ? URL.createObjectURL(file) : null);
-    setDesktopCompression(null);
+  function getFileExt(fileName: string): string {
+    const parts = fileName.split(".");
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "mp4";
   }
 
-  function handleMobileFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setMobileFile(file);
-    setMobilePreview(file ? URL.createObjectURL(file) : null);
-    setMobileCompression(null);
-  }
-
-  async function handleUploadDesktop() {
-    if (!desktopFile) {
-      alert("اختار فيديو الأول");
-      return;
-    }
-    setUploadingDesktop(true);
+  async function deleteFromR2(key: string) {
+    if (!key) return;
     try {
-      // ✅ بيمسح الفيديو القديم من Cloudinary الأول قبل رفع الجديد
-      if (currentDesktopUrl) {
-        console.log("🗑️ جاري حذف الفيديو القديم من Cloudinary:", currentDesktopUrl);
-        const deleted = await deleteFromCloudinary(currentDesktopUrl, "hero", "video");
-        console.log(deleted ? "✅ تم حذف القديم من Cloudinary" : "⚠️ فشل حذف القديم من Cloudinary");
-      }
-
-      const sizeBefore = desktopFile.size;
-      const { url, bytes: sizeAfter } = await uploadHeroVideo(desktopFile, "desktop");
-      await updateHeroVideo({ desktopVideoUrl: url });
-
-      setCurrentDesktopUrl(url);
-      setDesktopCompression({ before: sizeBefore, after: sizeAfter });
-      setDesktopFile(null);
-      setDesktopPreview(null);
+      await fetch("/api/r2/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
     } catch (error) {
       console.error(error);
-      alert("فشل رفع فيديو اللاب/التاب");
-    } finally {
-      setUploadingDesktop(false);
     }
   }
 
-  async function handleUploadMobile() {
-    if (!mobileFile) {
-      alert("اختار فيديو الأول");
-      return;
-    }
-    setUploadingMobile(true);
+  // ═══════════════════════════════════════════
+  // خطوة ١: رفع مؤقت على Cloudinary
+  // ═══════════════════════════════════════════
+  async function uploadTemp(
+    file: File,
+    accountId: string,
+    setUploading: (v: boolean) => void
+  ): Promise<PendingVideo | null> {
+    setUploading(true);
     try {
-      // ✅ بيمسح الفيديو القديم من Cloudinary الأول قبل رفع الجديد
-      if (currentMobileUrl) {
-        console.log("🗑️ جاري حذف الفيديو القديم من Cloudinary:", currentMobileUrl);
-        const deleted = await deleteFromCloudinary(currentMobileUrl, "hero-mobile", "video");
-        console.log(deleted ? "✅ تم حذف القديم من Cloudinary" : "⚠️ فشل حذف القديم من Cloudinary");
-      }
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("accountId", accountId);
 
-      const sizeBefore = mobileFile.size;
-      const { url, bytes: sizeAfter } = await uploadHeroVideo(mobileFile, "mobile");
-      await updateHeroVideo({ mobileVideoUrl: url });
+      const res = await fetch("/api/hero-video/upload-temp", {
+        method: "POST",
+        body: formData,
+      });
 
-      setCurrentMobileUrl(url);
-      setMobileCompression({ before: sizeBefore, after: sizeAfter });
-      setMobileFile(null);
-      setMobilePreview(null);
+      if (!res.ok) throw new Error("فشل الرفع المؤقت");
+      const data = await res.json();
+
+      return {
+        videoUrl: data.videoUrl,
+        publicId: data.publicId,
+        duration: data.duration || 0,
+        accountId: data.accountId,
+        fileExt: getFileExt(file.name),
+      };
     } catch (error) {
       console.error(error);
-      alert("فشل رفع فيديو الموبايل");
+      alert("فشل رفع الفيديو، حاول تاني");
+      return null;
     } finally {
-      setUploadingMobile(false);
+      setUploading(false);
     }
   }
 
-  // ✅ حفظ فريم اللاب
-  async function handleSaveDesktopFrame() {
-    setSavingDesktopFrame(true);
+  async function handleDesktopFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const pending = await uploadTemp(file, heroDesktopAccount, setUploadingDesktopTemp);
+    if (pending) {
+      setPendingDesktop(pending);
+      setDesktopFrame(0);
+    }
+    if (desktopInputRef.current) desktopInputRef.current.value = "";
+  }
+
+  async function handleMobileFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const pending = await uploadTemp(file, heroMobileAccount, setUploadingMobileTemp);
+    if (pending) {
+      setPendingMobile(pending);
+      setMobileFrame(0);
+    }
+    if (mobileInputRef.current) mobileInputRef.current.value = "";
+  }
+
+  // ═══════════════════════════════════════════
+  // السلايدر: تحريك الفيديو للفريم المختار
+  // ═══════════════════════════════════════════
+  function handleDesktopFrameChange(value: number) {
+    setDesktopFrame(value);
+    if (desktopPreviewRef.current) {
+      desktopPreviewRef.current.currentTime = value;
+    }
+  }
+
+  function handleMobileFrameChange(value: number) {
+    setMobileFrame(value);
+    if (mobilePreviewRef.current) {
+      mobilePreviewRef.current.currentTime = value;
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // خطوة ٢: اعتماد الفريم → نقل نهائي لـ R2
+  // ═══════════════════════════════════════════
+  async function finalizeVideo(
+    pending: PendingVideo,
+    frameSecond: number,
+    folder: string,
+    setFinalizing: (v: boolean) => void
+  ) {
+    setFinalizing(true);
     try {
-      await updateHeroVideo({ desktopPosterFrame });
-      alert("✅ تم حفظ فريم اللاب بنجاح");
+      const res = await fetch("/api/hero-video/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publicId: pending.publicId,
+          accountId: pending.accountId,
+          videoUrl: pending.videoUrl,
+          frameSecond,
+          folder,
+          fileExt: pending.fileExt,
+        }),
+      });
+
+      if (!res.ok) throw new Error("فشل الاعتماد النهائي");
+      return await res.json();
     } catch (error) {
       console.error(error);
-      alert("فشل حفظ الفريم");
+      alert("فشل اعتماد الفريم، حاول تاني");
+      return null;
     } finally {
-      setSavingDesktopFrame(false);
+      setFinalizing(false);
     }
   }
 
-  // ✅ حفظ فريم الموبايل
-  async function handleSaveMobileFrame() {
-    setSavingMobileFrame(true);
-    try {
-      await updateHeroVideo({ mobilePosterFrame });
-      alert("✅ تم حفظ فريم الموبايل بنجاح");
-    } catch (error) {
-      console.error(error);
-      alert("فشل حفظ الفريم");
-    } finally {
-      setSavingMobileFrame(false);
-    }
+  async function handleConfirmDesktopFrame() {
+    if (!pendingDesktop) return;
+    const result = await finalizeVideo(pendingDesktop, desktopFrame, "hero-videos", setFinalizingDesktop);
+    if (!result) return;
+
+    if (heroDesktopVideoKey) await deleteFromR2(heroDesktopVideoKey);
+    if (heroDesktopPosterKey) await deleteFromR2(heroDesktopPosterKey);
+
+    setHeroDesktopVideoUrl(result.url);
+    setHeroDesktopVideoKey(result.key);
+    setHeroDesktopPosterUrl(result.posterUrl);
+    setHeroDesktopPosterKey(result.posterKey);
+
+    await updateSettings({
+      heroDesktopVideoUrl: result.url,
+      heroDesktopVideoKey: result.key,
+      heroDesktopPosterUrl: result.posterUrl,
+      heroDesktopPosterKey: result.posterKey,
+      heroDesktopAccount: pendingDesktop.accountId,
+    });
+
+    setPendingDesktop(null);
+    alert("✅ تم اعتماد الفريم وحفظ فيديو اللاب");
   }
 
-  // ✅ حذف فيديو اللاب + مسح فعلي من Cloudinary
+  async function handleConfirmMobileFrame() {
+    if (!pendingMobile) return;
+    const result = await finalizeVideo(pendingMobile, mobileFrame, "hero-videos", setFinalizingMobile);
+    if (!result) return;
+
+    if (heroMobileVideoKey) await deleteFromR2(heroMobileVideoKey);
+    if (heroMobilePosterKey) await deleteFromR2(heroMobilePosterKey);
+
+    setHeroMobileVideoUrl(result.url);
+    setHeroMobileVideoKey(result.key);
+    setHeroMobilePosterUrl(result.posterUrl);
+    setHeroMobilePosterKey(result.posterKey);
+
+    await updateSettings({
+      heroMobileVideoUrl: result.url,
+      heroMobileVideoKey: result.key,
+      heroMobilePosterUrl: result.posterUrl,
+      heroMobilePosterKey: result.posterKey,
+      heroMobileAccount: pendingMobile.accountId,
+    });
+
+    setPendingMobile(null);
+    alert("✅ تم اعتماد الفريم وحفظ فيديو الموبايل");
+  }
+
+  function handleCancelDesktopPending() {
+    setPendingDesktop(null);
+    setDesktopFrame(0);
+  }
+
+  function handleCancelMobilePending() {
+    setPendingMobile(null);
+    setMobileFrame(0);
+  }
+
+  // ─── حذف فيديو اللاب ───
   async function handleDeleteDesktop() {
-    if (!currentDesktopUrl) return;
-    const confirmed = confirm(
-      "متأكد إنك عايز تمسح فيديو اللاب/التاب؟\n⚠️ الفيديو هيتمسح من Cloudinary نهائيًا!"
-    );
-    if (!confirmed) return;
+    if (!heroDesktopVideoUrl) return;
+    if (!confirm("متأكد إنك عايز تحذف فيديو اللاب؟")) return;
 
-    setDeletingDesktop(true);
-    try {
-      console.log("🗑️ جاري الحذف من Cloudinary:", currentDesktopUrl);
-      const deleted = await deleteFromCloudinary(currentDesktopUrl, "hero", "video");
+    if (heroDesktopVideoKey) await deleteFromR2(heroDesktopVideoKey);
+    if (heroDesktopPosterKey) await deleteFromR2(heroDesktopPosterKey);
 
-      if (deleted) {
-        console.log("✅ تم التأكيد: الفيديو اتمسح من Cloudinary فعليًا");
-      } else {
-        console.warn("⚠️ الحذف من Cloudinary فشل أو رجع false — راجع الـ API route والـ Console");
-      }
+    setHeroDesktopVideoUrl("");
+    setHeroDesktopVideoKey("");
+    setHeroDesktopPosterUrl("");
+    setHeroDesktopPosterKey("");
 
-      await clearHeroVideoField("desktopVideoUrl");
-      setCurrentDesktopUrl(null);
-      setDesktopCompression(null);
-      alert(deleted ? "✅ تم حذف الفيديو من Cloudinary وFirestore" : "⚠️ اتمسح من Firestore، لكن فيه مشكلة في حذفه من Cloudinary (شوف الـ Console)");
-    } catch (error) {
-      console.error("❌ خطأ في الحذف:", error);
-      alert("فشل حذف الفيديو");
-    } finally {
-      setDeletingDesktop(false);
-    }
+    await updateSettings({
+      heroDesktopVideoUrl: "",
+      heroDesktopVideoKey: "",
+      heroDesktopPosterUrl: "",
+      heroDesktopPosterKey: "",
+    });
+
+    alert("✅ تم حذف فيديو اللاب");
   }
 
-  // ✅ حذف فيديو الموبايل + مسح فعلي من Cloudinary
+  // ─── حذف فيديو الموبايل ───
   async function handleDeleteMobile() {
-    if (!currentMobileUrl) return;
-    const confirmed = confirm(
-      "متأكد إنك عايز تمسح فيديو الموبايل؟\n⚠️ الفيديو هيتمسح من Cloudinary نهائيًا!"
-    );
-    if (!confirmed) return;
+    if (!heroMobileVideoUrl) return;
+    if (!confirm("متأكد إنك عايز تحذف فيديو الموبايل؟")) return;
 
-    setDeletingMobile(true);
+    if (heroMobileVideoKey) await deleteFromR2(heroMobileVideoKey);
+    if (heroMobilePosterKey) await deleteFromR2(heroMobilePosterKey);
+
+    setHeroMobileVideoUrl("");
+    setHeroMobileVideoKey("");
+    setHeroMobilePosterUrl("");
+    setHeroMobilePosterKey("");
+
+    await updateSettings({
+      heroMobileVideoUrl: "",
+      heroMobileVideoKey: "",
+      heroMobilePosterUrl: "",
+      heroMobilePosterKey: "",
+    });
+
+    alert("✅ تم حذف فيديو الموبايل");
+  }
+
+  // ─── حفظ اختيار الحساب (لو اتغير من غير رفع فيديو جديد) ───
+  async function handleSaveAccounts() {
+    setSaving(true);
     try {
-      console.log("🗑️ جاري الحذف من Cloudinary:", currentMobileUrl);
-      const deleted = await deleteFromCloudinary(currentMobileUrl, "hero-mobile", "video");
-
-      if (deleted) {
-        console.log("✅ تم التأكيد: الفيديو اتمسح من Cloudinary فعليًا");
-      } else {
-        console.warn("⚠️ الحذف من Cloudinary فشل أو رجع false — راجع الـ API route والـ Console");
-      }
-
-      await clearHeroVideoField("mobileVideoUrl");
-      setCurrentMobileUrl(null);
-      setMobileCompression(null);
-      alert(deleted ? "✅ تم حذف الفيديو من Cloudinary وFirestore" : "⚠️ اتمسح من Firestore، لكن فيه مشكلة في حذفه من Cloudinary (شوف الـ Console)");
+      await updateSettings({
+        heroDesktopAccount,
+        heroMobileAccount,
+      });
+      alert("✅ تم حفظ اختيار الحسابات");
     } catch (error) {
-      console.error("❌ خطأ في الحذف:", error);
-      alert("فشل حذف الفيديو");
+      console.error(error);
+      alert("فشل الحفظ");
     } finally {
-      setDeletingMobile(false);
+      setSaving(false);
     }
   }
 
-  const desktopPosterPreview = currentDesktopUrl
-    ? getPosterFromFrame(currentDesktopUrl, desktopPosterFrame)
-    : "";
-
-  const mobilePosterPreview = currentMobileUrl
-    ? getPosterFromFrame(currentMobileUrl, mobilePosterFrame)
-    : "";
+  if (loading) return <p className="text-text-muted p-6">جاري التحميل...</p>;
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-6">
+    <div className="max-w-5xl mx-auto pb-20">
       <h1 className="text-2xl font-bold text-text-primary mb-2">
-        إدارة فيديو الهيرو
+        🎬 إدارة فيديو الهيرو
       </h1>
       <p className="text-text-muted text-sm mb-8">
-        ارفع فيديو أفقي للاب/التاب وفيديو عمودي للموبايل — مع فريم غلاف منفصل لكل واحد
+        الفيديو بيترفع مؤقتًا على Cloudinary الأول، وبعدين تقدر تحرك السلايدر وتختار فريم الغلاف بنفسك، وبعد الاعتماد بينقل الفيديو والصورة لـ R2 نهائيًا ويتحذف من Cloudinary.
       </p>
 
-      {loading ? (
-        <p className="text-text-muted">جاري التحميل...</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* ============ اللاب/التاب ============ */}
-          <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-text-primary">
-              🖥️ فيديو اللاب / التاب (أفقي)
-            </h2>
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* ═══════════════ فيديو اللاب/تاب ═══════════════ */}
+        <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+            🖥️ فيديو اللاب / التاب (أفقي)
+          </h2>
 
-            {currentDesktopUrl && !desktopPreview && (
-              <div>
-                <p className="text-text-muted text-xs mb-2">الفيديو الحالي:</p>
-                <video
-                  src={currentDesktopUrl}
-                  className="w-full rounded-lg border border-border aspect-video object-cover"
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-                <button
-                  onClick={handleDeleteDesktop}
-                  disabled={deletingDesktop}
-                  className="w-full mt-3 text-error border border-error/30 hover:bg-error/10 disabled:opacity-50 px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                >
-                  {deletingDesktop ? "جاري الحذف..." : "🗑️ حذف الفيديو من Cloudinary"}
-                </button>
+          {/* اختيار حساب Cloudinary */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text-primary">حساب Cloudinary</label>
+            <div className="relative">
+              <select
+                value={heroDesktopAccount}
+                onChange={(e) => setHeroDesktopAccount(e.target.value)}
+                disabled={!!pendingDesktop}
+                className="w-full px-4 py-2.5 rounded-lg border border-border bg-surface text-text-primary text-sm appearance-none cursor-pointer pr-10 disabled:opacity-50"
+              >
+                {CLOUDINARY_ACCOUNT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
+                <ChevronDownIcon />
               </div>
-            )}
-
-            {!currentDesktopUrl && (
-              <p className="text-text-muted text-xs">مفيش فيديو مرفوع دلوقتي</p>
-            )}
-
-            {desktopCompression && (
-              <div className="bg-success/10 border border-success/30 rounded-lg p-3 space-y-1">
-                <p className="text-xs text-text-secondary">
-                  📊 الحجم قبل الرفع:{" "}
-                  <span className="font-semibold text-text-primary">
-                    {formatBytes(desktopCompression.before)}
-                  </span>
-                </p>
-                <p className="text-xs text-text-secondary">
-                  📊 الحجم بعد الضغط:{" "}
-                  <span className="font-semibold text-text-primary">
-                    {formatBytes(desktopCompression.after)}
-                  </span>
-                </p>
-                <p className="text-xs font-semibold text-success">
-                  ✅ تم توفير{" "}
-                  {Math.round(
-                    (1 - desktopCompression.after / desktopCompression.before) * 100
-                  )}
-                  % من المساحة
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-text-secondary text-sm mb-2">
-                📤 ارفع فيديو جديد هنا
-              </label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={handleDesktopFileChange}
-                className="w-full text-text-secondary text-sm"
-              />
             </div>
-
-            {desktopPreview && (
-              <div>
-                <p className="text-text-muted text-xs mb-2">معاينة الفيديو الجديد:</p>
-                <video
-                  src={desktopPreview}
-                  className="w-full rounded-lg border border-primary aspect-video object-cover"
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-              </div>
-            )}
-
-            <button
-              onClick={handleUploadDesktop}
-              disabled={!desktopFile || uploadingDesktop}
-              className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2.5 rounded-full font-medium transition-colors"
-            >
-              {uploadingDesktop ? "جاري الرفع..." : "رفع وتحديث فيديو اللاب"}
-            </button>
-
-            {/* ✅ Slider منفصل لللاب */}
-            {currentDesktopUrl && (
-              <div className="pt-4 border-t border-border space-y-3">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  🖼️ فريم الغلاف (Poster) - اللاب
-                </h3>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-text-secondary">
-                    <span>الثانية: {desktopPosterFrame}</span>
-                    <span>0 - 10</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="1"
-                    value={desktopPosterFrame}
-                    onChange={(e) => setDesktopPosterFrame(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
-
-                {desktopPosterPreview && (
-                  <div>
-                    <p className="text-text-muted text-xs mb-2">معاينة الفريم:</p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={desktopPosterPreview}
-                      alt="معاينة فريم الغلاف"
-                      className="w-full rounded-lg border border-border aspect-video object-cover"
-                    />
-                  </div>
-                )}
-
-                <button
-                  onClick={handleSaveDesktopFrame}
-                  disabled={savingDesktopFrame}
-                  className="w-full bg-surface hover:bg-border disabled:opacity-50 text-text-primary border border-border px-6 py-2 rounded-full text-sm font-medium transition-colors"
-                >
-                  {savingDesktopFrame ? "جاري الحفظ..." : "💾 حفظ فريم اللاب"}
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* ============ الموبايل ============ */}
-          <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-text-primary">
-              📱 فيديو الموبايل (عمودي)
-            </h2>
-
-            {currentMobileUrl && !mobilePreview && (
-              <div>
-                <p className="text-text-muted text-xs mb-2">الفيديو الحالي:</p>
+          {/* ─── وضع اختيار الفريم (فيديو مؤقت جديد) ─── */}
+          {pendingDesktop ? (
+            <div className="space-y-3 border border-primary/40 rounded-lg p-3 bg-primary/5">
+              <p className="text-xs font-medium text-primary">🎯 اختر فريم الغلاف بتحريك السلايدر</p>
+              <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
                 <video
-                  src={currentMobileUrl}
-                  className="w-full max-w-[200px] mx-auto rounded-lg border border-border aspect-[9/16] object-cover"
+                  ref={desktopPreviewRef}
+                  src={pendingDesktop.videoUrl}
+                  className="w-full h-full object-cover"
                   muted
-                  loop
-                  autoPlay
                   playsInline
+                  preload="auto"
                 />
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(pendingDesktop.duration - 0.1, 0.1)}
+                step={0.1}
+                value={desktopFrame}
+                onChange={(e) => handleDesktopFrameChange(parseFloat(e.target.value))}
+                className="w-full cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-text-muted">
+                <span>0:00</span>
+                <span>{desktopFrame.toFixed(1)}s</span>
+                <span>{pendingDesktop.duration.toFixed(1)}s</span>
+              </div>
+              <div className="flex gap-2">
                 <button
-                  onClick={handleDeleteMobile}
-                  disabled={deletingMobile}
-                  className="w-full mt-3 text-error border border-error/30 hover:bg-error/10 disabled:opacity-50 px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  onClick={handleConfirmDesktopFrame}
+                  disabled={finalizingDesktop}
+                  className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-2 rounded-full text-sm font-bold transition-colors"
                 >
-                  {deletingMobile ? "جاري الحذف..." : "🗑️ حذف الفيديو من Cloudinary"}
+                  {finalizingDesktop ? "⏳ جاري الاعتماد..." : "✅ اعتماد الفريم ده"}
+                </button>
+                <button
+                  onClick={handleCancelDesktopPending}
+                  disabled={finalizingDesktop}
+                  className="px-4 border border-border rounded-full text-sm text-text-secondary hover:bg-surface disabled:opacity-50 transition-colors"
+                >
+                  إلغاء
                 </button>
               </div>
-            )}
-
-            {!currentMobileUrl && (
-              <p className="text-text-muted text-xs">مفيش فيديو مرفوع دلوقتي</p>
-            )}
-
-            {mobileCompression && (
-              <div className="bg-success/10 border border-success/30 rounded-lg p-3 space-y-1">
-                <p className="text-xs text-text-secondary">
-                  📊 الحجم قبل الرفع:{" "}
-                  <span className="font-semibold text-text-primary">
-                    {formatBytes(mobileCompression.before)}
-                  </span>
-                </p>
-                <p className="text-xs text-text-secondary">
-                  📊 الحجم بعد الضغط:{" "}
-                  <span className="font-semibold text-text-primary">
-                    {formatBytes(mobileCompression.after)}
-                  </span>
-                </p>
-                <p className="text-xs font-semibold text-success">
-                  ✅ تم توفير{" "}
-                  {Math.round(
-                    (1 - mobileCompression.after / mobileCompression.before) * 100
-                  )}
-                  % من المساحة
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-text-secondary text-sm mb-2">
-                📤 ارفع فيديو جديد هنا
-              </label>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={handleMobileFileChange}
-                className="w-full text-text-secondary text-sm"
-              />
             </div>
-
-            {mobilePreview && (
-              <div>
-                <p className="text-text-muted text-xs mb-2">معاينة الفيديو الجديد:</p>
-                <video
-                  src={mobilePreview}
-                  className="w-full max-w-[200px] mx-auto rounded-lg border border-primary aspect-[9/16] object-cover"
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-              </div>
-            )}
-
-            <button
-              onClick={handleUploadMobile}
-              disabled={!mobileFile || uploadingMobile}
-              className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2.5 rounded-full font-medium transition-colors"
-            >
-              {uploadingMobile ? "جاري الرفع..." : "رفع وتحديث فيديو الموبايل"}
-            </button>
-
-            {/* ✅ Slider منفصل للموبايل */}
-            {currentMobileUrl && (
-              <div className="pt-4 border-t border-border space-y-3">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  🖼️ فريم الغلاف (Poster) - الموبايل
-                </h3>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-text-secondary">
-                    <span>الثانية: {mobilePosterFrame}</span>
-                    <span>0 - 10</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="1"
-                    value={mobilePosterFrame}
-                    onChange={(e) => setMobilePosterFrame(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
-
-                {mobilePosterPreview && (
-                  <div>
-                    <p className="text-text-muted text-xs mb-2">معاينة الفريم:</p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={mobilePosterPreview}
-                      alt="معاينة فريم الغلاف"
-                      className="w-full max-w-[200px] mx-auto rounded-lg border border-border aspect-[9/16] object-cover"
+          ) : (
+            <>
+              {/* المعاينة النهائية المحفوظة */}
+              {heroDesktopVideoUrl ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
+                    <video
+                      src={heroDesktopVideoUrl}
+                      poster={heroDesktopPosterUrl || undefined}
+                      className="w-full h-full object-cover"
+                      controls
+                      muted
                     />
                   </div>
-                )}
 
-                <button
-                  onClick={handleSaveMobileFrame}
-                  disabled={savingMobileFrame}
-                  className="w-full bg-surface hover:bg-border disabled:opacity-50 text-text-primary border border-border px-6 py-2 rounded-full text-sm font-medium transition-colors"
-                >
-                  {savingMobileFrame ? "جاري الحفظ..." : "💾 حفظ فريم الموبايل"}
-                </button>
+                  {/* ═══ اللينكات النهائية على R2 ═══ */}
+                  <div className="space-y-2 bg-surface rounded-lg p-3 border border-border">
+                    <LinkField label="🔗 لينك الفيديو (R2)" url={heroDesktopVideoUrl} />
+                    <LinkField label="🔗 لينك صورة الغلاف (R2)" url={heroDesktopPosterUrl} />
+                  </div>
+
+                  <button
+                    onClick={handleDeleteDesktop}
+                    className="w-full text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-full py-2 text-sm font-medium transition-colors"
+                  >
+                    🗑️ حذف الفيديو
+                  </button>
+                </div>
+              ) : (
+                <div className="aspect-video bg-surface border-2 border-dashed border-border rounded-lg flex items-center justify-center text-text-muted text-sm">
+                  لا يوجد فيديو حالي
+                </div>
+              )}
+
+              {/* رفع جديد */}
+              <div className="space-y-2">
+                <p className="text-xs text-text-muted">📤 ارفع فيديو جديد هنا</p>
+                <input
+                  ref={desktopInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleDesktopFileSelect}
+                  disabled={uploadingDesktopTemp}
+                  className="block w-full text-sm text-text-secondary file:ml-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dark file:cursor-pointer cursor-pointer"
+                />
+                {uploadingDesktopTemp && (
+                  <p className="text-xs text-primary">⏳ جاري الرفع المؤقت على Cloudinary...</p>
+                )}
               </div>
-            )}
-          </div>
+
+              {heroDesktopPosterUrl && (
+                <div className="space-y-2">
+                  <p className="text-xs text-text-muted">🖼️ فريم الغلاف الحالي</p>
+                  <div className="rounded-lg overflow-hidden border border-border aspect-video">
+                    <Image
+                      src={heroDesktopPosterUrl}
+                      alt="فريم الغلاف - اللاب"
+                      width={640}
+                      height={360}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      )}
+
+        {/* ═══════════════ فيديو الموبايل ═══════════════ */}
+        <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+            📱 فيديو الموبايل (عمودي)
+          </h2>
+
+          {/* اختيار حساب Cloudinary */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-text-primary">حساب Cloudinary</label>
+            <div className="relative">
+              <select
+                value={heroMobileAccount}
+                onChange={(e) => setHeroMobileAccount(e.target.value)}
+                disabled={!!pendingMobile}
+                className="w-full px-4 py-2.5 rounded-lg border border-border bg-surface text-text-primary text-sm appearance-none cursor-pointer pr-10 disabled:opacity-50"
+              >
+                {CLOUDINARY_ACCOUNT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-muted">
+                <ChevronDownIcon />
+              </div>
+            </div>
+          </div>
+
+          {/* ─── وضع اختيار الفريم (فيديو مؤقت جديد) ─── */}
+          {pendingMobile ? (
+            <div className="space-y-3 border border-primary/40 rounded-lg p-3 bg-primary/5">
+              <p className="text-xs font-medium text-primary">🎯 اختر فريم الغلاف بتحريك السلايدر</p>
+              <div className="rounded-lg overflow-hidden border border-border bg-black aspect-[9/16] max-h-80 mx-auto">
+                <video
+                  ref={mobilePreviewRef}
+                  src={pendingMobile.videoUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  preload="auto"
+                />
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(pendingMobile.duration - 0.1, 0.1)}
+                step={0.1}
+                value={mobileFrame}
+                onChange={(e) => handleMobileFrameChange(parseFloat(e.target.value))}
+                className="w-full cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-text-muted">
+                <span>0:00</span>
+                <span>{mobileFrame.toFixed(1)}s</span>
+                <span>{pendingMobile.duration.toFixed(1)}s</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirmMobileFrame}
+                  disabled={finalizingMobile}
+                  className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-2 rounded-full text-sm font-bold transition-colors"
+                >
+                  {finalizingMobile ? "⏳ جاري الاعتماد..." : "✅ اعتماد الفريم ده"}
+                </button>
+                <button
+                  onClick={handleCancelMobilePending}
+                  disabled={finalizingMobile}
+                  className="px-4 border border-border rounded-full text-sm text-text-secondary hover:bg-surface disabled:opacity-50 transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* المعاينة النهائية المحفوظة */}
+              {heroMobileVideoUrl ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg overflow-hidden border border-border bg-black aspect-[9/16] max-h-80 mx-auto">
+                    <video
+                      src={heroMobileVideoUrl}
+                      poster={heroMobilePosterUrl || undefined}
+                      className="w-full h-full object-cover"
+                      controls
+                      muted
+                    />
+                  </div>
+
+                  {/* ═══ اللينكات النهائية على R2 ═══ */}
+                  <div className="space-y-2 bg-surface rounded-lg p-3 border border-border">
+                    <LinkField label="🔗 لينك الفيديو (R2)" url={heroMobileVideoUrl} />
+                    <LinkField label="🔗 لينك صورة الغلاف (R2)" url={heroMobilePosterUrl} />
+                  </div>
+
+                  <button
+                    onClick={handleDeleteMobile}
+                    className="w-full text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-full py-2 text-sm font-medium transition-colors"
+                  >
+                    🗑️ حذف الفيديو
+                  </button>
+                </div>
+              ) : (
+                <div className="aspect-[9/16] max-h-80 bg-surface border-2 border-dashed border-border rounded-lg flex items-center justify-center text-text-muted text-sm mx-auto">
+                  لا يوجد فيديو حالي
+                </div>
+              )}
+
+              {/* رفع جديد */}
+              <div className="space-y-2">
+                <p className="text-xs text-text-muted">📤 ارفع فيديو جديد هنا</p>
+                <input
+                  ref={mobileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleMobileFileSelect}
+                  disabled={uploadingMobileTemp}
+                  className="block w-full text-sm text-text-secondary file:ml-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dark file:cursor-pointer cursor-pointer"
+                />
+                {uploadingMobileTemp && (
+                  <p className="text-xs text-primary">⏳ جاري الرفع المؤقت على Cloudinary...</p>
+                )}
+              </div>
+
+              {heroMobilePosterUrl && (
+                <div className="space-y-2">
+                  <p className="text-xs text-text-muted">🖼️ فريم الغلاف الحالي</p>
+                  <div className="rounded-lg overflow-hidden border border-border aspect-[9/16] max-h-40 mx-auto">
+                    <Image
+                      src={heroMobilePosterUrl}
+                      alt="فريم الغلاف - الموبايل"
+                      width={180}
+                      height={320}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="sticky bottom-6 bg-surface-raised border border-border rounded-xl p-4 shadow-lg mt-6">
+        <button
+          onClick={handleSaveAccounts}
+          disabled={saving || uploadingDesktopTemp || uploadingMobileTemp || !!pendingDesktop || !!pendingMobile}
+          className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-3 rounded-full font-bold text-lg transition-colors"
+        >
+          {saving ? "⏳ جاري الحفظ..." : "💾 حفظ اختيار الحسابات"}
+        </button>
+      </div>
     </div>
   );
 }

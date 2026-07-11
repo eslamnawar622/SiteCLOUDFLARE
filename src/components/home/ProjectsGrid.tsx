@@ -20,6 +20,7 @@ export default function ProjectsGrid({ projects }: { projects: Project[] }) {
                 alt={project.title}
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-500"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
               />
               <div className="absolute top-3 right-3 bg-surface-raised/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-text-secondary">
                 {project.type}

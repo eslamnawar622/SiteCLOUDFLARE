@@ -7,8 +7,12 @@ export interface Project {
   year: number;
   description: string;
   shortDescription: string;
-  mainImage: string;      // صورة البطاقة + صفحة التفاصيل
-  gallery: string[];
+  mainImage: string;      // صورة الغلاف (مختارة من الجاليري)
+  gallery: string[];      // كل صور المشروع
+  galleryKeys: string[];  // مفاتيح R2 لكل صورة (عشان نقدر نحذفهم)
   featured: boolean;
+  badgeText: string;      // نص الشريط الأزرق (تصميم داخلي / خارجي / شقة كاملة ...)
+  cardWidth?: number;     // عرض الكارت بالبكسل (اختياري)
+  cardHeight?: number;    // طول الكارت بالبكسل (اختياري)
   createdAt: Date;
 }
