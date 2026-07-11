@@ -1,3 +1,29 @@
+export interface OfferStats {
+  totalViews: number;
+  totalClicks: number;
+  mobileViews: number;
+  desktopViews: number;
+  history: {
+    date: string;
+    views: number;
+    clicks: number;
+  }[];
+}
+
+export type BadgePosition =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "middle-left"
+  | "middle-center"
+  | "middle-right"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+// عمودي = شكله الحالي (نص واقف)، أفقي = شريط عريض عادي
+export type BadgeOrientation = "vertical" | "horizontal";
+
 export interface Offer {
   id: string;
   title: string;
@@ -9,12 +35,20 @@ export interface Offer {
   status: "current" | "archived";
   startDate: Date;
   endDate?: Date;
-  badgeText?: string;      // ✅ نص الشريط الجانبي
-  displayDate?: string;    // ✅ التاريخ اللي هيتعرض
-  showDate?: boolean;      // ✅ إظهار/إخفاء التاريخ
-
-    
-  // ✅ أبعاد البطاقة (اختياري — لو مش موجود يبقى default)
-  cardHeight?: number;   // ارتفاع الصورة بالبكسل (default: 224 = h-56)
-  cardCols?: number;     // عدد الأعمدة في الشبكة (1-3, default: 3)
+  badgeText?: string;
+  badgePositionMobile?: BadgePosition;
+  badgePositionDesktop?: BadgePosition;
+  badgeOrientationMobile?: BadgeOrientation;
+  badgeOrientationDesktop?: BadgeOrientation;
+  // نسبة الحجم % — 100 = الحجم الطبيعي
+  badgeSizeMobile?: number;
+  badgeSizeDesktop?: number;
+  displayDate?: string;
+  showDate?: boolean;
+  currentMobileHeight?: number;
+  currentDesktopHeight?: number;
+  currentDesktopWidth?: number;
+  cardHeight?: number;
+  cardCols?: number;
+  stats?: OfferStats;
 }

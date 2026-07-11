@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   query,
   where,
   orderBy,
@@ -44,11 +45,28 @@ function mapDocToOffer(docSnap: QueryDocumentSnapshot<DocumentData>): Offer {
     startDate: (data.startDate as Timestamp)?.toDate?.() || new Date(),
     endDate: data.endDate ? (data.endDate as Timestamp).toDate() : undefined,
     badgeText: data.badgeText || undefined,
+    badgePositionMobile: data.badgePositionMobile || undefined,
+    badgePositionDesktop: data.badgePositionDesktop || undefined,
+    badgeOrientationMobile: data.badgeOrientationMobile || undefined,
+    badgeOrientationDesktop: data.badgeOrientationDesktop || undefined,
+    badgeSizeMobile: data.badgeSizeMobile || undefined,
+    badgeSizeDesktop: data.badgeSizeDesktop || undefined,
     displayDate: data.displayDate || undefined,
     showDate: data.showDate !== false,
-    // ✅ أبعاد البطاقة
+    currentMobileHeight: data.currentMobileHeight || undefined,
+    currentDesktopHeight: data.currentDesktopHeight || undefined,
+    currentDesktopWidth: data.currentDesktopWidth || undefined,
     cardHeight: data.cardHeight || undefined,
     cardCols: data.cardCols || undefined,
+    stats: data.stats
+      ? {
+          totalViews: data.stats.totalViews || 0,
+          totalClicks: data.stats.totalClicks || 0,
+          mobileViews: data.stats.mobileViews || 0,
+          desktopViews: data.stats.desktopViews || 0,
+          history: Array.isArray(data.stats.history) ? data.stats.history : [],
+        }
+      : undefined,
   };
 }
 
@@ -103,10 +121,17 @@ export function subscribeToArchivedOffers(
 // ✏️ إضافة / تعديل / حذف / أرشفة / استرجاع
 // ============================================
 
-export async function addCurrentOffer(data: {
+export interface OfferInput {
+  [key: string]: string | number | boolean | undefined | null;
   title: string;
   description: string;
   badgeText?: string;
+  badgePositionMobile?: string;
+  badgePositionDesktop?: string;
+  badgeOrientationMobile?: string;
+  badgeOrientationDesktop?: string;
+  badgeSizeMobile?: number;
+  badgeSizeDesktop?: number;
   imageUrl?: string;
   imageKey?: string;
   videoUrl?: string;
@@ -115,7 +140,12 @@ export async function addCurrentOffer(data: {
   showDate?: boolean;
   cardHeight?: number;
   cardCols?: number;
-}): Promise<string> {
+  currentMobileHeight?: number;
+  currentDesktopHeight?: number;
+  currentDesktopWidth?: number;
+}
+
+export async function addCurrentOffer(data: OfferInput): Promise<string> {
   const docRef = await addDoc(OFFERS_COLLECTION, {
     ...removeUndefined(data),
     status: "current",
@@ -124,19 +154,7 @@ export async function addCurrentOffer(data: {
   return docRef.id;
 }
 
-export async function addArchivedOffer(data: {
-  title: string;
-  description: string;
-  badgeText?: string;
-  imageUrl?: string;
-  imageKey?: string;
-  videoUrl?: string;
-  videoKey?: string;
-  displayDate?: string;
-  showDate?: boolean;
-  cardHeight?: number;
-  cardCols?: number;
-}): Promise<string> {
+export async function addArchivedOffer(data: OfferInput): Promise<string> {
   const docRef = await addDoc(OFFERS_COLLECTION, {
     ...removeUndefined(data),
     status: "archived",
@@ -161,23 +179,111 @@ export async function setOfferAsCurrent(offerId: string): Promise<void> {
 
 export async function updateOffer(
   offerId: string,
-  data: Partial<{
-    title: string;
-    description: string;
-    badgeText?: string;
-    imageUrl: string;
-    imageKey: string;
-    videoUrl: string;
-    videoKey: string;
-    displayDate?: string;
-    showDate?: boolean;
-    cardHeight?: number;
-    cardCols?: number;
-  }>
+  data: Partial<OfferInput>
 ): Promise<void> {
   await updateDoc(doc(db, "offers", offerId), removeUndefined(data));
 }
 
 export async function deleteOffer(offerId: string): Promise<void> {
   await deleteDoc(doc(db, "offers", offerId));
+}
+
+// ============================================
+// 📊 إحصائيات
+// ============================================
+
+interface StatsData {
+  totalViews: number;
+  totalClicks: number;
+  mobileViews: number;
+  desktopViews: number;
+  history: HistoryEntry[];
+}
+
+interface HistoryEntry {
+  date: string;
+  views: number;
+  clicks: number;
+}
+
+function getToday(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function createEmptyStats(): StatsData {
+  return {
+    totalViews: 0,
+    totalClicks: 0,
+    mobileViews: 0,
+    desktopViews: 0,
+    history: [],
+  };
+}
+
+function trimHistory(history: HistoryEntry[]): HistoryEntry[] {
+  if (history.length <= 30) return history;
+  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
+  return sorted.slice(-30);
+}
+
+export async function trackOfferView(
+  offerId: string,
+  isDesktop: boolean
+): Promise<void> {
+  const ref = doc(db, "offers", offerId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const today = getToday();
+
+  const stats: StatsData = data.stats ? { ...createEmptyStats(), ...data.stats } : createEmptyStats();
+
+  const existingDay = stats.history.find((h: HistoryEntry) => h.date === today);
+  if (existingDay) {
+    existingDay.views += 1;
+  } else {
+    stats.history.push({ date: today, views: 1, clicks: 0 });
+    stats.history = trimHistory(stats.history);
+  }
+
+  stats.totalViews += 1;
+  if (isDesktop) {
+    stats.desktopViews += 1;
+  } else {
+    stats.mobileViews += 1;
+  }
+
+  await updateDoc(ref, { stats: stats as unknown as Record<string, unknown> });
+}
+
+export async function trackOfferClick(
+  offerId: string,
+  isDesktop: boolean
+): Promise<void> {
+  const ref = doc(db, "offers", offerId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  const today = getToday();
+
+  const stats: StatsData = data.stats ? { ...createEmptyStats(), ...data.stats } : createEmptyStats();
+
+  const existingDay = stats.history.find((h: HistoryEntry) => h.date === today);
+  if (existingDay) {
+    existingDay.clicks += 1;
+  } else {
+    stats.history.push({ date: today, views: 0, clicks: 1 });
+    stats.history = trimHistory(stats.history);
+  }
+
+  stats.totalClicks += 1;
+  if (isDesktop) {
+    stats.desktopViews += 1;
+  } else {
+    stats.mobileViews += 1;
+  }
+
+  await updateDoc(ref, { stats: stats as unknown as Record<string, unknown> });
 }
