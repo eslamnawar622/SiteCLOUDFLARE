@@ -25,6 +25,9 @@ export default function AdminSettingsPage() {
   const [magnifierSize, setMagnifierSize] = useState(170);
   const [magnifierZoom, setMagnifierZoom] = useState(2);
 
+  // ─── Products Section Toggle ───
+  const [showProductsSection, setShowProductsSection] = useState(true);
+
   // ─── Loading / Saving ───
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,6 +46,7 @@ export default function AdminSettingsPage() {
         );
         setMagnifierSize(data.magnifierSize || 170);
         setMagnifierZoom(data.magnifierZoom || 2);
+        setShowProductsSection(data.showProductsSection !== false);
       }
       setLoading(false);
     }
@@ -115,6 +119,7 @@ export default function AdminSettingsPage() {
         logoUrl,
         logoKey,
         logoHeight,
+        showProductsSection,
       });
       alert("✅ تم حفظ الإعدادات");
     } catch (error) {
@@ -325,6 +330,43 @@ export default function AdminSettingsPage() {
             className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-2.5 rounded-full font-medium transition-colors"
           >
             {saving ? "جاري الحفظ..." : "💾 حفظ إعدادات العدسة"}
+          </button>
+        </div>
+
+        {/* ═══════════════════════════════════════
+            🛍️ سكشن المنتجات في الصفحة الرئيسية
+        ═══════════════════════════════════════ */}
+        <div className="bg-surface-raised border border-border rounded-xl p-6 space-y-4">
+          <h2 className="text-xl font-bold text-text-primary">🛍️ سكشن المنتجات</h2>
+          <p className="text-xs text-text-muted">
+           تحكم في إظهار أو إخفاء سكشن &quot;منتجاتنا&quot; بالكامل من الصفحة الرئيسية
+          </p>
+
+          <div className="flex items-center justify-between bg-surface border border-border rounded-lg px-4 py-3">
+            <span className="text-sm font-medium text-text-primary">
+              {showProductsSection ? "السكشن ظاهر حاليًا في الصفحة الرئيسية" : "السكشن مخفي حاليًا"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowProductsSection((v) => !v)}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+                showProductsSection ? "bg-primary" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  showProductsSection ? "-translate-x-1" : "-translate-x-6"
+                }`}
+              />
+            </button>
+          </div>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-2.5 rounded-full font-medium transition-colors"
+          >
+            {saving ? "جاري الحفظ..." : "💾 حفظ إعدادات سكشن المنتجات"}
           </button>
         </div>
 

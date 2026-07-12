@@ -18,10 +18,13 @@ export default function AdminClientsPage() {
   const [loading, setLoading] = useState(true);
 
   // ✅ إعدادات قسم العملاء
+  const [sectionLabel, setSectionLabel] = useState("شركاؤنا");
   const [sectionTitle, setSectionTitle] = useState("عملاؤنا");
   const [sectionSubtitle, setSectionSubtitle] = useState(
     "نفتخر بثقة كبرى الشركات والعلامات التجارية في مصر والوطن العربي"
   );
+  const [labelSize, setLabelSize] = useState(14);
+  const [titleSize, setTitleSize] = useState(32);
   const [savingSettings, setSavingSettings] = useState(false);
 
   // بيانات الفورم
@@ -49,8 +52,11 @@ export default function AdminClientsPage() {
   useEffect(() => {
     async function loadSettings() {
       const s = await getClientsSectionSettings();
+      setSectionLabel(s.label || "شركاؤنا");
       setSectionTitle(s.title);
       setSectionSubtitle(s.subtitle);
+      setLabelSize(s.labelSize || 14);
+      setTitleSize(s.titleSize || 32);
     }
     loadSettings();
   }, []);
@@ -76,6 +82,9 @@ export default function AdminClientsPage() {
       await updateClientsSectionSettings({
         title: sectionTitle,
         subtitle: sectionSubtitle,
+        label: sectionLabel,
+        labelSize,
+        titleSize,
       });
       alert("✅ تم حفظ الإعدادات!");
     } catch {
@@ -178,7 +187,7 @@ export default function AdminClientsPage() {
   }
 
   return (
-       <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-text-primary mb-8">
         إدارة العملاء
       </h1>
@@ -189,20 +198,67 @@ export default function AdminClientsPage() {
         className="bg-surface-raised border border-border rounded-xl p-6 mb-10 space-y-4"
       >
         <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-          ⚙️ إعدادات قسم العملاء
+          🏷️ عنوان سكشن العملاء
         </h2>
 
         <div>
           <label className="block text-text-secondary text-sm mb-1">
-            العنوان الرئيسي
+            النص الصغير (فوق العنوان)
+          </label>
+          <input
+            type="text"
+            value={sectionLabel}
+            onChange={(e) => setSectionLabel(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
+            placeholder="مثال: شركاؤنا"
+          />
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-text-muted whitespace-nowrap">
+              حجم الخط
+            </span>
+            <input
+              type="range"
+              min="10"
+              max="24"
+              step="1"
+              value={labelSize}
+              onChange={(e) => setLabelSize(parseInt(e.target.value))}
+              className="w-full accent-primary h-1"
+            />
+            <span className="text-xs text-text-muted w-10 text-left">
+              {labelSize}px
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-text-secondary text-sm mb-1">
+            العنوان الرئيسي (جوه الشريط الأزرق)
           </label>
           <input
             type="text"
             value={sectionTitle}
             onChange={(e) => setSectionTitle(e.target.value)}
             className="w-full px-4 py-2 rounded-lg bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
-            placeholder="مثال: عملاؤنا / شركاؤنا"
+            placeholder="مثال: عملاؤنا"
           />
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-text-muted whitespace-nowrap">
+              حجم الخط
+            </span>
+            <input
+              type="range"
+              min="18"
+              max="48"
+              step="1"
+              value={titleSize}
+              onChange={(e) => setTitleSize(parseInt(e.target.value))}
+              className="w-full accent-primary h-1"
+            />
+            <span className="text-xs text-text-muted w-10 text-left">
+              {titleSize}px
+            </span>
+          </div>
         </div>
 
         <div>
@@ -218,12 +274,31 @@ export default function AdminClientsPage() {
           />
         </div>
 
+        {/* ✅ بريفيو حي */}
+        <div className="bg-surface rounded-lg border border-border p-6 text-center">
+          <p
+            className="text-primary font-semibold mb-3 tracking-wide"
+            style={{ fontSize: labelSize }}
+          >
+            {sectionLabel || "شركاؤنا"}
+          </p>
+          <span
+            className="inline-block bg-primary text-white font-bold px-6 py-2 rounded-full mb-3"
+            style={{ fontSize: titleSize }}
+          >
+            {sectionTitle || "عملاؤنا"}
+          </span>
+          {sectionSubtitle && (
+            <p className="text-text-muted mt-3 text-sm">{sectionSubtitle}</p>
+          )}
+        </div>
+
         <button
           type="submit"
           disabled={savingSettings}
           className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2 rounded-full font-medium transition-colors"
         >
-          {savingSettings ? "جاري الحفظ..." : "💾 حفظ الإعدادات"}
+          {savingSettings ? "جاري الحفظ..." : "💾 حفظ عنوان السكشن"}
         </button>
       </form>
 

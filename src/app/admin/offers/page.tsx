@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   subscribeToCurrentOffer,
   subscribeToArchivedOffers,
@@ -11,6 +11,7 @@ import {
   updateOffer,
   deleteOffer,
 } from "@/lib/firestore/offers";
+import { getSettings, updateSettings } from "@/lib/firestore/settings";
 import { Offer, OfferStats, BadgePosition, BadgeOrientation } from "@/types/offer";
 
 // ============================================
@@ -62,6 +63,92 @@ function getR2DashboardUrl(key: string): string {
   const encodedKey = encodeURIComponent(key);
   return `https://dash.cloudflare.com/${accountId}/r2/default/buckets/${bucketName}/objects/${encodedKey}`;
 }
+
+function getFileExt(fileName: string): string {
+  const parts = fileName.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "mp4";
+}
+
+// ============================================
+// 🔗 مكوّن صغير لعرض لينك R2 مع زرار نسخ — نفس اللي في صفحة الهيرو
+// ============================================
+
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function LinkField({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  if (!url) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-text-muted">{label}</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          value={url}
+          onClick={(e) => (e.target as HTMLInputElement).select()}
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-surface text-text-primary text-xs truncate dir-ltr text-left"
+          dir="ltr"
+        />
+        <button
+          onClick={handleCopy}
+          type="button"
+          className={`shrink-0 px-3 py-2 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1 ${
+            copied
+              ? "bg-green-50 border-green-300 text-green-600"
+              : "border-border text-text-secondary hover:bg-surface"
+          }`}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? "اتنسخ" : "نسخ"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// 🎬 فيديو العروض — رفع مؤقت على Cloudinary + اختيار فريم الغلاف
+// نفس آلية hero-video بالظبط، لكن فيديو واحد بس (مفيش لابتوب/موبايل منفصلين)
+// ============================================
+
+interface PendingVideo {
+  videoUrl: string;
+  publicId: string;
+  duration: number;
+  accountId: string;
+  fileExt: string;
+}
+
+const OFFER_VIDEO_ACCOUNT = "account1";
+const OFFER_VIDEO_FOLDER = "عروض/العروض-الحالية";
 
 // ============================================
 // 🏷️ مكان الشريط الأزرق (badge) — شبكة 3×3
@@ -343,6 +430,13 @@ export default function AdminOffersPage() {
   const [archivedOffers, setArchivedOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ✅ إعدادات عنوان سكشن العروض في الصفحة الرئيسية
+  const [sectionLabel, setSectionLabel] = useState("عروضنا");
+  const [sectionTitle, setSectionTitle] = useState("عروضنا");
+  const [sectionLabelSize, setSectionLabelSize] = useState(14);
+  const [sectionTitleSize, setSectionTitleSize] = useState(32);
+  const [savingSectionSettings, setSavingSectionSettings] = useState(false);
+
   // ============ فورم إضافة/تعديل العرض الحالي ============
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -350,9 +444,19 @@ export default function AdminOffersPage() {
   const [badgeText, setBadgeText] = useState("عرض حالي");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // ─── فيديو العرض: نفس آلية hero-video (رفع مؤقت → اختيار فريم → اعتماد) ───
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoKey, setVideoKey] = useState("");
+  const [posterUrl, setPosterUrl] = useState("");
+  const [posterKey, setPosterKey] = useState("");
+  const [uploadingVideoTemp, setUploadingVideoTemp] = useState(false);
+  const [finalizingVideo, setFinalizingVideo] = useState(false);
+  const [pendingVideo, setPendingVideo] = useState<PendingVideo | null>(null);
+  const [videoFrame, setVideoFrame] = useState(0);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
   const [currentMobileHeight, setCurrentMobileHeight] = useState(256);
   const [currentDesktopHeight, setCurrentDesktopHeight] = useState(400);
@@ -401,6 +505,38 @@ export default function AdminOffersPage() {
     };
   }, []);
 
+  // ✅ تحميل إعدادات عنوان سكشن العروض
+  useEffect(() => {
+    async function loadSectionSettings() {
+      const settings = await getSettings();
+      if (settings?.offersSectionLabel) setSectionLabel(settings.offersSectionLabel);
+      if (settings?.offersSectionTitle) setSectionTitle(settings.offersSectionTitle);
+      if (settings?.offersSectionLabelSize)
+        setSectionLabelSize(settings.offersSectionLabelSize);
+      if (settings?.offersSectionTitleSize)
+        setSectionTitleSize(settings.offersSectionTitleSize);
+    }
+    loadSectionSettings();
+  }, []);
+
+  async function handleSaveSectionSettings() {
+    setSavingSectionSettings(true);
+    try {
+      await updateSettings({
+        offersSectionLabel: sectionLabel,
+        offersSectionTitle: sectionTitle,
+        offersSectionLabelSize: sectionLabelSize,
+        offersSectionTitleSize: sectionTitleSize,
+      });
+      alert("✅ تم حفظ عنوان السكشن!");
+    } catch (error) {
+      console.error(error);
+      alert("❌ حصل خطأ");
+    } finally {
+      setSavingSectionSettings(false);
+    }
+  }
+
   function resetForm() {
     setEditingId(null);
     setTitle("");
@@ -408,8 +544,12 @@ export default function AdminOffersPage() {
     setBadgeText("عرض حالي");
     setImageFile(null);
     setImagePreview(null);
-    setVideoFile(null);
-    setVideoPreview(null);
+    setVideoUrl("");
+    setVideoKey("");
+    setPosterUrl("");
+    setPosterKey("");
+    setPendingVideo(null);
+    setVideoFrame(0);
     setCurrentMobileHeight(256);
     setCurrentDesktopHeight(400);
     setCurrentDesktopWidth(50);
@@ -438,8 +578,12 @@ export default function AdminOffersPage() {
     setBadgeText(offer.badgeText || "عرض حالي");
     setImageFile(null);
     setImagePreview(null);
-    setVideoFile(null);
-    setVideoPreview(null);
+    setVideoUrl(offer.videoUrl || "");
+    setVideoKey(offer.videoKey || "");
+    setPosterUrl(offer.posterUrl || "");
+    setPosterKey(offer.posterKey || "");
+    setPendingVideo(null);
+    setVideoFrame(0);
     setCurrentMobileHeight(offer.currentMobileHeight || 256);
     setCurrentDesktopHeight(offer.currentDesktopHeight || 400);
     setCurrentDesktopWidth(offer.currentDesktopWidth || 50);
@@ -457,10 +601,106 @@ export default function AdminOffersPage() {
     setImagePreview(file ? URL.createObjectURL(file) : null);
   }
 
-  function handleVideoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setVideoFile(file);
-    setVideoPreview(file ? URL.createObjectURL(file) : null);
+  // ═══════════════════════════════════════════
+  // 🎬 خطوة ١: رفع الفيديو مؤقتًا على Cloudinary
+  // ═══════════════════════════════════════════
+  async function handleVideoFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingVideoTemp(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("accountId", OFFER_VIDEO_ACCOUNT);
+
+      const res = await fetch("/api/offer-video/upload-temp", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("فشل الرفع المؤقت");
+      const data = await res.json();
+
+      setPendingVideo({
+        videoUrl: data.videoUrl,
+        publicId: data.publicId,
+        duration: data.duration || 0,
+        accountId: data.accountId,
+        fileExt: getFileExt(file.name),
+      });
+      setVideoFrame(0);
+    } catch (error) {
+      console.error(error);
+      alert("فشل رفع الفيديو، حاول تاني");
+    } finally {
+      setUploadingVideoTemp(false);
+    }
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  }
+
+  // ═══════════════════════════════════════════
+  // 🎯 السلايدر: تحريك الفيديو للفريم المختار
+  // ═══════════════════════════════════════════
+  function handleVideoFrameChange(value: number) {
+    setVideoFrame(value);
+    if (videoPreviewRef.current) {
+      videoPreviewRef.current.currentTime = value;
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // ✅ خطوة ٢: اعتماد الفريم → نقل نهائي لـ R2 (فيديو + صورة الغلاف)
+  // ═══════════════════════════════════════════
+  async function handleConfirmVideoFrame() {
+    if (!pendingVideo) return;
+    setFinalizingVideo(true);
+    try {
+      const res = await fetch("/api/offer-video/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publicId: pendingVideo.publicId,
+          accountId: pendingVideo.accountId,
+          videoUrl: pendingVideo.videoUrl,
+          frameSecond: videoFrame,
+          folder: OFFER_VIDEO_FOLDER,
+          fileExt: pendingVideo.fileExt,
+        }),
+      });
+
+      if (!res.ok) throw new Error("فشل الاعتماد النهائي");
+      const result = await res.json();
+
+      // امسح الفيديو/الصورة القديمين من R2 لو كانوا موجودين
+      if (videoKey) await deleteFileFromR2(videoKey);
+      if (posterKey) await deleteFileFromR2(posterKey);
+
+      setVideoUrl(result.url);
+      setVideoKey(result.key);
+      setPosterUrl(result.posterUrl);
+      setPosterKey(result.posterKey);
+      setPendingVideo(null);
+    } catch (error) {
+      console.error(error);
+      alert("فشل اعتماد الفريم، حاول تاني");
+    } finally {
+      setFinalizingVideo(false);
+    }
+  }
+
+  function handleCancelPendingVideo() {
+    setPendingVideo(null);
+    setVideoFrame(0);
+  }
+
+  function handleRemoveVideo() {
+    // بيشيل الفيديو من الفورم بس (الحذف الفعلي من R2 بيحصل وقت الحفظ لو استبدلته،
+    // أو تقدر تمسحه وتحفظ عرض بصورة بس)
+    setVideoUrl("");
+    setVideoKey("");
+    setPosterUrl("");
+    setPosterKey("");
   }
 
   async function handleSaveOffer() {
@@ -468,7 +708,7 @@ export default function AdminOffersPage() {
       alert("اكتب عنوان العرض");
       return;
     }
-    if (!editingId && !imageFile && !videoFile) {
+    if (!editingId && !imageFile && !videoUrl) {
       alert("اختار صورة أو فيديو للعرض على الأقل");
       return;
     }
@@ -477,8 +717,6 @@ export default function AdminOffersPage() {
     try {
       let imageUrl: string | undefined;
       let imageKey: string | undefined;
-      let videoUrl: string | undefined;
-      let videoKey: string | undefined;
 
       if (imageFile) {
         const uploaded = await uploadFileToR2(
@@ -487,14 +725,6 @@ export default function AdminOffersPage() {
         );
         imageUrl = uploaded.url;
         imageKey = uploaded.key;
-      }
-      if (videoFile) {
-        const uploaded = await uploadFileToR2(
-          videoFile,
-          "عروض/العروض-الحالية"
-        );
-        videoUrl = uploaded.url;
-        videoKey = uploaded.key;
       }
 
       if (editingId) {
@@ -514,11 +744,14 @@ export default function AdminOffersPage() {
           badgeOrientationDesktop,
           badgeSizeMobile,
           badgeSizeDesktop,
+          // ✅ الفيديو والغلاف كانوا خلاص اتعملهم finalize واتحفظوا على R2
+          videoUrl: videoUrl || undefined,
+          videoKey: videoKey || undefined,
+          posterUrl: posterUrl || undefined,
+          posterKey: posterKey || undefined,
         };
         if (imageUrl) updateData.imageUrl = imageUrl;
         if (imageKey) updateData.imageKey = imageKey;
-        if (videoUrl) updateData.videoUrl = videoUrl;
-        if (videoKey) updateData.videoKey = videoKey;
 
         await updateOffer(editingId, updateData);
       } else {
@@ -531,8 +764,10 @@ export default function AdminOffersPage() {
           badgeText: badgeText.trim() || "عرض حالي",
           imageUrl,
           imageKey,
-          videoUrl,
-          videoKey,
+          videoUrl: videoUrl || undefined,
+          videoKey: videoKey || undefined,
+          posterUrl: posterUrl || undefined,
+          posterKey: posterKey || undefined,
           currentMobileHeight,
           currentDesktopHeight,
           currentDesktopWidth,
@@ -588,6 +823,8 @@ export default function AdminOffersPage() {
         await deleteFileFromR2(currentOffer.imageKey);
       if (currentOffer.videoKey)
         await deleteFileFromR2(currentOffer.videoKey);
+      if (currentOffer.posterKey)
+        await deleteFileFromR2(currentOffer.posterKey);
       await deleteOffer(currentOffer.id);
     } catch (error) {
       console.error(error);
@@ -674,6 +911,7 @@ export default function AdminOffersPage() {
     try {
       if (offer.imageKey) await deleteFileFromR2(offer.imageKey);
       if (offer.videoKey) await deleteFileFromR2(offer.videoKey);
+      if (offer.posterKey) await deleteFileFromR2(offer.posterKey);
       await deleteOffer(offer.id);
     } catch (error) {
       console.error(error);
@@ -703,6 +941,97 @@ export default function AdminOffersPage() {
         تحته
       </p>
 
+      {/* ============ عنوان سكشن العروض في الصفحة الرئيسية ============ */}
+      <div className="bg-surface-raised border border-border rounded-xl p-6 mb-10 space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+          🏷️ عنوان سكشن العروض
+        </h2>
+
+        <div>
+          <label className="block text-text-secondary text-sm mb-1">
+            النص الصغير (فوق العنوان)
+          </label>
+          <input
+            type="text"
+            value={sectionLabel}
+            onChange={(e) => setSectionLabel(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
+            placeholder="مثال: عروضنا"
+          />
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-text-muted whitespace-nowrap">
+              حجم الخط
+            </span>
+            <input
+              type="range"
+              min="10"
+              max="24"
+              step="1"
+              value={sectionLabelSize}
+              onChange={(e) => setSectionLabelSize(parseInt(e.target.value))}
+              className="w-full accent-primary h-1"
+            />
+            <span className="text-xs text-text-muted w-10 text-left">
+              {sectionLabelSize}px
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-text-secondary text-sm mb-1">
+            العنوان الرئيسي (جوه الشريط الأزرق)
+          </label>
+          <input
+            type="text"
+            value={sectionTitle}
+            onChange={(e) => setSectionTitle(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg bg-surface text-text-primary border border-border focus:outline-none focus:border-primary"
+            placeholder="مثال: عروضنا"
+          />
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-xs text-text-muted whitespace-nowrap">
+              حجم الخط
+            </span>
+            <input
+              type="range"
+              min="18"
+              max="48"
+              step="1"
+              value={sectionTitleSize}
+              onChange={(e) => setSectionTitleSize(parseInt(e.target.value))}
+              className="w-full accent-primary h-1"
+            />
+            <span className="text-xs text-text-muted w-10 text-left">
+              {sectionTitleSize}px
+            </span>
+          </div>
+        </div>
+
+        {/* بريفيو حي */}
+        <div className="bg-surface rounded-lg border border-border p-6 text-center">
+          <p
+            className="text-primary font-semibold mb-3 tracking-wide"
+            style={{ fontSize: sectionLabelSize }}
+          >
+            {sectionLabel || "عروضنا"}
+          </p>
+          <span
+            className="inline-block bg-primary text-white font-bold px-6 py-2 rounded-full"
+            style={{ fontSize: sectionTitleSize }}
+          >
+            {sectionTitle || "عروضنا"}
+          </span>
+        </div>
+
+        <button
+          onClick={handleSaveSectionSettings}
+          disabled={savingSectionSettings}
+          className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2 rounded-full font-medium transition-colors"
+        >
+          {savingSectionSettings ? "جاري الحفظ..." : "💾 حفظ عنوان السكشن"}
+        </button>
+      </div>
+
       {loading ? (
         <p className="text-text-muted">جاري التحميل...</p>
       ) : (
@@ -719,6 +1048,7 @@ export default function AdminOffersPage() {
                   {currentOffer.videoUrl ? (
                     <video
                       src={currentOffer.videoUrl}
+                      poster={currentOffer.posterUrl || undefined}
                       className="w-20 h-20 object-cover rounded-lg"
                       muted
                       loop
@@ -783,6 +1113,16 @@ export default function AdminOffersPage() {
                           className="text-[11px] text-primary hover:underline"
                         >
                           🔗 فتح الملف مباشرة
+                        </a>
+                      )}
+                      {currentOffer.posterUrl && (
+                        <a
+                          href={currentOffer.posterUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          🖼️ فتح صورة الغلاف
                         </a>
                       )}
                       {(currentOffer.videoKey ||
@@ -1110,9 +1450,10 @@ export default function AdminOffersPage() {
                             }
                       }
                     >
-                      {videoPreview || currentOffer?.videoUrl ? (
+                      {videoUrl ? (
                         <video
-                          src={videoPreview || currentOffer?.videoUrl}
+                          src={videoUrl}
+                          poster={posterUrl || undefined}
                           className="w-full h-full object-cover"
                           muted
                           loop
@@ -1193,36 +1534,122 @@ export default function AdminOffersPage() {
                 />
               )}
 
-              <div>
-                <label className="block text-text-secondary text-xs mb-1">
-                  🎬 فيديو{" "}
-                  {editingId
-                    ? "(اختياري - اتركه فاضي لو مش عايز تغيّر)"
-                    : "(اختياري بدل الصورة أو معاها)"}
-                </label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleVideoFileChange}
-                  className="w-full text-text-secondary text-sm"
-                />
-              </div>
+              {/* ═══════════════ 🎬 فيديو العرض — رفع مؤقت + اختيار فريم الغلاف ═══════════════ */}
+              <div className="border border-border rounded-lg p-4 space-y-3 bg-surface">
+                <p className="text-xs font-semibold text-text-primary">
+                  🎬 فيديو العرض{" "}
+                  {editingId ? "(اختياري - اتركه زي ما هو لو مش عايز تغيّر)" : "(اختياري بدل الصورة أو معاها)"}
+                </p>
+                <p className="text-[10px] text-text-muted">
+                  بيترفع مؤقتًا على Cloudinary الأول، وتقدر تحرك السلايدر
+                  وتختار فريم الغلاف بنفسك، وبعد الاعتماد بينقل الفيديو
+                  والصورة لـ R2 نهائيًا.
+                </p>
 
-              {videoPreview && (
-                <video
-                  src={videoPreview}
-                  className="w-full max-w-[300px] rounded-lg border border-primary aspect-video object-cover"
-                  muted
-                  loop
-                  autoPlay
-                  playsInline
-                />
-              )}
+                {/* ─── وضع اختيار الفريم (فيديو مؤقت جديد) ─── */}
+                {pendingVideo ? (
+                  <div className="space-y-3 border border-primary/40 rounded-lg p-3 bg-primary/5">
+                    <p className="text-xs font-medium text-primary">
+                      🎯 اختر فريم الغلاف بتحريك السلايدر
+                    </p>
+                    <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
+                      <video
+                        ref={videoPreviewRef}
+                        src={pendingVideo.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="auto"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={Math.max(pendingVideo.duration - 0.1, 0.1)}
+                      step={0.1}
+                      value={videoFrame}
+                      onChange={(e) =>
+                        handleVideoFrameChange(parseFloat(e.target.value))
+                      }
+                      className="w-full cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-text-muted">
+                      <span>0:00</span>
+                      <span>{videoFrame.toFixed(1)}s</span>
+                      <span>{pendingVideo.duration.toFixed(1)}s</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleConfirmVideoFrame}
+                        disabled={finalizingVideo}
+                        className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white py-2 rounded-full text-sm font-bold transition-colors"
+                      >
+                        {finalizingVideo
+                          ? "⏳ جاري الاعتماد..."
+                          : "✅ اعتماد الفريم ده"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelPendingVideo}
+                        disabled={finalizingVideo}
+                        className="px-4 border border-border rounded-full text-sm text-text-secondary hover:bg-surface disabled:opacity-50 transition-colors"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {videoUrl && (
+                      <div className="space-y-2">
+                        <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
+                          <video
+                            src={videoUrl}
+                            poster={posterUrl || undefined}
+                            className="w-full h-full object-cover"
+                            controls
+                            muted
+                          />
+                        </div>
+
+                        {/* ═══ اللينكات النهائية على R2 — نفس شكل صفحة الهيرو ═══ */}
+                        <div className="space-y-2 bg-surface-raised rounded-lg p-3 border border-border">
+                          <LinkField label="🔗 لينك الفيديو (R2)" url={videoUrl} />
+                          <LinkField label="🖼️ لينك صورة الغلاف / الـ Placeholder (R2)" url={posterUrl} />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleRemoveVideo}
+                          className="w-full text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 rounded-full py-1.5 text-xs font-medium transition-colors"
+                        >
+                          🗑️ شيل الفيديو من الفورم
+                        </button>
+                      </div>
+                    )}
+
+                    <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoFileSelect}
+                      disabled={uploadingVideoTemp}
+                      className="block w-full text-sm text-text-secondary file:ml-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dark file:cursor-pointer cursor-pointer"
+                    />
+                    {uploadingVideoTemp && (
+                      <p className="text-xs text-primary">
+                        ⏳ جاري الرفع المؤقت على Cloudinary...
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
 
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveOffer}
-                  disabled={saving || !title.trim()}
+                  disabled={saving || !title.trim() || !!pendingVideo}
                   className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2.5 rounded-full font-medium transition-colors"
                 >
                   {saving

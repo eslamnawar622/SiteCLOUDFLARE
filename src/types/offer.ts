@@ -32,6 +32,9 @@ export interface Offer {
   imageKey?: string;
   videoUrl?: string;
   videoKey?: string;
+  // ✅ صورة الغلاف (poster) المستخرجة من الفيديو — بتتعرض فورًا قبل ما الفيديو يحمّل
+  posterUrl?: string;
+  posterKey?: string;
   status: "current" | "archived";
   startDate: Date;
   endDate?: Date;

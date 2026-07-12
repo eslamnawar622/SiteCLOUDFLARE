@@ -10,6 +10,8 @@ const sections = [
   { href: "/admin/offers", label: "العروض", icon: "🎯", desc: "العروض الحالية والسابقة" },
   { href: "/admin/service-types", label: "أنواع الخدمات", icon: "🧩", desc: "تصنيفات الخدمات المقدمة" },
   { href: "/admin/process", label: "مراحل العمل", icon: "🧭", desc: "خطوات آلية العمل مع العميل" },
+    { href: "/admin/product-inquiry", label: "طلب المنتج", icon: "💬", desc: "رسالة واتساب طلب المنتج" },
+
   { href: "/admin/settings", label: "الإعدادات", icon: "⚙️", desc: "الإعدادات العامة للموقع" },
 ];
 

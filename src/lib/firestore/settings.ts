@@ -38,6 +38,22 @@ export interface SettingsData {
   heroMobilePosterUrl?: string;
   heroMobilePosterKey?: string;
   heroMobileAccount?: string;
+  // 🛍️ سكشن المنتجات في الصفحة الرئيسية
+  showProductsSection?: boolean;
+  productsSectionLabel?: string;
+  productsSectionTitle?: string;
+  productsSectionLabelSize?: number;
+  productsSectionTitleSize?: number;
+  // 🏗️ سكشن المشاريع في الصفحة الرئيسية
+  projectsSectionLabel?: string;
+  projectsSectionTitle?: string;
+  projectsSectionLabelSize?: number;
+  projectsSectionTitleSize?: number;
+  // 🎁 سكشن العروض في الصفحة الرئيسية
+  offersSectionLabel?: string;
+  offersSectionTitle?: string;
+  offersSectionLabelSize?: number;
+  offersSectionTitleSize?: number;
   updatedAt?: number;
 }
 

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
    { href: "/admin/projects", label: "🏗️ المشاريع", id: "projects" },
+   { href: "/admin/products", label: "🛍️ المنتجات", id: "products" },
    { href: "/admin/team", label: "👨‍💼 الفريق", id: "team" },
   { href: "/admin/map", label: "🗺️ الخريطة", id: "map" },
   { href: "/admin/hero-video", label: "🎬 فيديو الهيرو", id: "hero-video" },
@@ -14,6 +15,8 @@ const navItems = [
   { href: "/admin/offers", label: "🎯 العروض", id: "offers" },
   { href: "/admin/service-types", label: "🧩 أنواع الخدمات", id: "service-types" },
   { href: "/admin/process", label: "🧭 مراحل العمل", id: "process" },
+  { href: "/admin/product-inquiry", label: "💬 طلب المنتج", id: "product-inquiry" },
+
   { href: "/admin/settings", label: "⚙️ الإعدادات", id: "settings" },
 ];
 

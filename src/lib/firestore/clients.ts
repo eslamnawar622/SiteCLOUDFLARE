@@ -22,6 +22,9 @@ export interface Client {
 export interface ClientsSectionSettings {
   title: string;
   subtitle: string;
+  label?: string;        // 👈 جديد: النص الصغير فوق العنوان
+  labelSize?: number;    // 👈 جديد: حجم خط النص الصغير
+  titleSize?: number;    // 👈 جديد: حجم خط العنوان (الشريط الأزرق)
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -61,26 +64,38 @@ export async function deleteClient(id: string): Promise<void> {
   await deleteDoc(clientRef);
 }
 
-// ✅ الجديد: قراءة إعدادات قسم العملاء
+// ✅ قراءة إعدادات قسم العملاء
 export async function getClientsSectionSettings(): Promise<ClientsSectionSettings> {
   const docRef = doc(db, "settings", "clientsSection");
   const snapshot = await getDoc(docRef);
 
   if (snapshot.exists()) {
-    return snapshot.data() as ClientsSectionSettings;
+    const data = snapshot.data() as ClientsSectionSettings;
+    return {
+      title: data.title || "عملاؤنا",
+      subtitle:
+        data.subtitle ||
+        "نفتخر بثقة كبرى الشركات والعلامات التجارية في مصر والوطن العربي",
+      label: data.label || "شركاؤنا",
+      labelSize: data.labelSize || 14,
+      titleSize: data.titleSize || 32,
+    };
   }
 
   // القيم الافتراضية لو مفيش حاجة محفوظة
   return {
     title: "عملاؤنا",
     subtitle: "نفتخر بثقة كبرى الشركات والعلامات التجارية في مصر والوطن العربي",
+    label: "شركاؤنا",
+    labelSize: 14,
+    titleSize: 32,
   };
 }
 
-// ✅ الجديد: حفظ إعدادات قسم العملاء
+// ✅ حفظ إعدادات قسم العملاء
 export async function updateClientsSectionSettings(
   settings: ClientsSectionSettings
 ): Promise<void> {
   const docRef = doc(db, "settings", "clientsSection");
-  await setDoc(docRef, settings);
+  await setDoc(docRef, settings, { merge: true });
 }

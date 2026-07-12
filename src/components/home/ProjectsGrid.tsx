@@ -12,9 +12,19 @@ export default function ProjectsGrid({ projects }: { projects: Project[] }) {
         <FadeInWhenVisible key={project.id} delay={index * 0.08}>
           <Link
             href={`/projects/${project.slug}`}
-            className="group block bg-surface rounded-2xl overflow-hidden border border-border hover:shadow-lg hover:shadow-primary/10 transition-all duration-300"
+            className="group block bg-surface rounded-2xl overflow-hidden border border-border hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 mx-auto"
+            style={
+              project.cardWidth
+                ? { maxWidth: project.cardWidth, width: "100%" }
+                : undefined
+            }
           >
-            <div className="relative aspect-[4/3] w-full overflow-hidden">
+            <div
+              className={`relative w-full overflow-hidden ${
+                project.cardHeight ? "" : "aspect-[4/3]"
+              }`}
+              style={project.cardHeight ? { height: project.cardHeight } : undefined}
+            >
               <Image
                 src={project.mainImage}
                 alt={project.title}

@@ -89,6 +89,14 @@ export default function OffersSection() {
     "مرحباً Axis Design Studio 👋\n\nأنا مهتم بالعرض: *{title}*\n\nممكن التفاصيل؟"
   );
 
+  // ✅ هيدر السكشن الديناميكي
+  const [sectionLabel, setSectionLabel] = useState("عروضنا");
+  const [sectionTitle, setSectionTitle] = useState("عروضنا");
+  const [sectionLabelSize, setSectionLabelSize] = useState(14);
+  const [sectionTitleSize, setSectionTitleSize] = useState(32);
+  // ⛔ منع عرض القيم الافتراضية قبل ما توصل الإعدادات الحقيقية من فايرستور
+  const [headerReady, setHeaderReady] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       const [current, archived] = await Promise.all([
@@ -105,12 +113,26 @@ export default function OffersSection() {
       const settings = await getSettings();
       if (settings?.whatsappNumber) setWhatsappNumber(settings.whatsappNumber);
       if (settings?.whatsappMessage) setWhatsappMessage(settings.whatsappMessage);
+      if (settings?.offersSectionLabel) setSectionLabel(settings.offersSectionLabel);
+      if (settings?.offersSectionTitle) setSectionTitle(settings.offersSectionTitle);
+      if (settings?.offersSectionLabelSize)
+        setSectionLabelSize(settings.offersSectionLabelSize);
+      if (settings?.offersSectionTitleSize)
+        setSectionTitleSize(settings.offersSectionTitleSize);
+      setHeaderReady(true);
     }
     loadSettings();
 
     const unsub = subscribeToSettings((data) => {
       if (data?.whatsappNumber) setWhatsappNumber(data.whatsappNumber);
       if (data?.whatsappMessage) setWhatsappMessage(data.whatsappMessage);
+      if (data?.offersSectionLabel) setSectionLabel(data.offersSectionLabel);
+      if (data?.offersSectionTitle) setSectionTitle(data.offersSectionTitle);
+      if (data?.offersSectionLabelSize)
+        setSectionLabelSize(data.offersSectionLabelSize);
+      if (data?.offersSectionTitleSize)
+        setSectionTitleSize(data.offersSectionTitleSize);
+      setHeaderReady(true);
     });
     return () => unsub();
   }, []);
@@ -191,9 +213,23 @@ export default function OffersSection() {
   return (
     <section id="offers" className="bg-surface py-16 px-6 md:px-12 relative">
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-semibold text-text-primary mb-10">
-          عروضنا
-        </h2>
+        <div
+          className="text-center mb-10"
+          style={{ visibility: headerReady ? "visible" : "hidden" }}
+        >
+          <p
+            className="text-primary font-semibold mb-3 tracking-wide"
+            style={{ fontSize: sectionLabelSize }}
+          >
+            {sectionLabel}
+          </p>
+          <span
+            className="inline-block bg-primary text-white font-bold px-6 py-2 rounded-full"
+            style={{ fontSize: sectionTitleSize }}
+          >
+            {sectionTitle}
+          </span>
+        </div>
 
         {/* العرض الحالي */}
         {currentOffer ? (
@@ -226,10 +262,12 @@ export default function OffersSection() {
             <div className="relative flex-shrink-0" style={mediaStyle}>
               {currentOffer.videoUrl ? (
                 <>
+                  {/* ✅ poster = صورة الفريم المستخرج من الفيديو، بتظهر فورًا قبل ما الفيديو يحمّل — زي الهيرو بالظبط */}
                   <video
                     ref={videoRef}
                     className="w-full h-full object-cover"
                     src={currentOffer.videoUrl}
+                    poster={currentOffer.posterUrl || currentOffer.imageUrl}
                     autoPlay
                     muted={muted}
                     loop

@@ -3,33 +3,36 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
-  getAllProjects,
-  addProject,
-  updateProject,
-  deleteProject,
-} from "@/lib/firestore/projects";
+  getAllProducts,
+  addProduct,
+  updateProduct,
+  deleteProduct,
+} from "@/lib/firestore/products";
 import { getSettings, updateSettings } from "@/lib/firestore/settings";
-import { Project } from "@/types/project";
-import ProjectsGrid from "@/components/home/ProjectsGrid";
+import { Product } from "@/types/product";
+import ProductsGrid from "@/components/home/ProductsGrid";
+import ImagePositionEditor from "@/components/admin/ImagePositionEditor";
 
 type GalleryImage = { url: string; key: string };
 
 const emptyForm = {
   slug: "",
-  title: "",
-  location: "",
-  type: "",
-  year: new Date().getFullYear(),
+  name: "",
+  category: "",
+  price: "" as string | number,
   description: "",
   shortDescription: "",
-  badgeText: "",
   featured: false,
   cardWidth: "" as string | number,
   cardHeight: "" as string | number,
+  imageFit: "cover" as "cover" | "contain",
+  imagePositionX: 50,
+  imagePositionY: 50,
+  imageZoom: 1,
 };
 
-export default function AdminProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+export default function AdminProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -38,23 +41,23 @@ export default function AdminProjectsPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ─── عنوان سكشن المشاريع في الصفحة الرئيسية ───
-  const [sectionLabel, setSectionLabel] = useState("أعمالنا");
-  const [sectionTitle, setSectionTitle] = useState("أحدث المشاريع");
+  // ─── عنوان سكشن المنتجات في الصفحة الرئيسية ───
+  const [sectionLabel, setSectionLabel] = useState("تشكيلتنا المميزة");
+  const [sectionTitle, setSectionTitle] = useState("منتجاتنا");
   const [sectionLabelSize, setSectionLabelSize] = useState(14);
   const [sectionTitleSize, setSectionTitleSize] = useState(32);
   const [sectionLoading, setSectionLoading] = useState(true);
   const [sectionSaving, setSectionSaving] = useState(false);
 
   useEffect(() => {
-    loadProjects();
+    loadProducts();
     loadSectionSettings();
   }, []);
 
-  async function loadProjects() {
+  async function loadProducts() {
     setLoading(true);
-    const data = await getAllProjects();
-    setProjects(data);
+    const data = await getAllProducts();
+    setProducts(data);
     setLoading(false);
   }
 
@@ -62,10 +65,10 @@ export default function AdminProjectsPage() {
     setSectionLoading(true);
     const data = await getSettings();
     if (data) {
-      setSectionLabel(data.projectsSectionLabel || "أعمالنا");
-      setSectionTitle(data.projectsSectionTitle || "أحدث المشاريع");
-      setSectionLabelSize(data.projectsSectionLabelSize || 14);
-      setSectionTitleSize(data.projectsSectionTitleSize || 32);
+      setSectionLabel(data.productsSectionLabel || "تشكيلتنا المميزة");
+      setSectionTitle(data.productsSectionTitle || "منتجاتنا");
+      setSectionLabelSize(data.productsSectionLabelSize || 14);
+      setSectionTitleSize(data.productsSectionTitleSize || 32);
     }
     setSectionLoading(false);
   }
@@ -74,10 +77,10 @@ export default function AdminProjectsPage() {
     setSectionSaving(true);
     try {
       await updateSettings({
-        projectsSectionLabel: sectionLabel,
-        projectsSectionTitle: sectionTitle,
-        projectsSectionLabelSize: sectionLabelSize,
-        projectsSectionTitleSize: sectionTitleSize,
+        productsSectionLabel: sectionLabel,
+        productsSectionTitle: sectionTitle,
+        productsSectionLabelSize: sectionLabelSize,
+        productsSectionTitleSize: sectionTitleSize,
       });
       alert("✅ تم حفظ عنوان السكشن");
     } catch (err) {
@@ -96,7 +99,7 @@ export default function AdminProjectsPage() {
   }
 
   function generateSlug() {
-    const asciiSlug = form.title
+    const asciiSlug = form.name
       .trim()
       .toLowerCase()
       .replace(/\s+/g, "-")
@@ -104,7 +107,7 @@ export default function AdminProjectsPage() {
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
 
-    const slug = asciiSlug || `project-${Date.now().toString(36)}`;
+    const slug = asciiSlug || `product-${Date.now().toString(36)}`;
 
     setForm((f) => ({ ...f, slug }));
   }
@@ -167,37 +170,57 @@ export default function AdminProjectsPage() {
     }
   }
 
-  function startEdit(project: Project) {
-    setEditingId(project.id);
-    setForm({
-      slug: project.slug,
-      title: project.title,
-      location: project.location,
-      type: project.type,
-      year: project.year,
-      description: project.description,
-      shortDescription: project.shortDescription,
-      badgeText: project.badgeText || "",
-      featured: project.featured,
-      cardWidth: project.cardWidth ?? "",
-      cardHeight: project.cardHeight ?? "",
+  // تحريك صورة لفوق أو لتحت في ترتيب الألبوم
+  function moveImage(index: number, direction: "up" | "down") {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= gallery.length) return;
+
+    setGallery((prev) => {
+      const updated = [...prev];
+      [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
+      return updated;
     });
 
-    const images: GalleryImage[] = project.gallery.map((url, i) => ({
+    setMainImageIndex((prev) => {
+      if (prev === index) return targetIndex;
+      if (prev === targetIndex) return index;
+      return prev;
+    });
+  }
+
+  function startEdit(product: Product) {
+    setEditingId(product.id);
+    setForm({
+      slug: product.slug,
+      name: product.name,
+      category: product.category,
+      price: product.price ?? "",
+      description: product.description,
+      shortDescription: product.shortDescription,
+      featured: product.featured,
+      cardWidth: product.cardWidth ?? "",
+      cardHeight: product.cardHeight ?? "",
+      imageFit: product.imageFit ?? "cover",
+      imagePositionX: product.imagePositionX ?? 50,
+      imagePositionY: product.imagePositionY ?? 50,
+      imageZoom: product.imageZoom ?? 1,
+    });
+
+    const images: GalleryImage[] = product.gallery.map((url, i) => ({
       url,
-      key: project.galleryKeys?.[i] || "",
+      key: product.galleryKeys?.[i] || "",
     }));
     setGallery(images);
-    const mainIdx = images.findIndex((img) => img.url === project.mainImage);
+    const mainIdx = images.findIndex((img) => img.url === product.mainImage);
     setMainImageIndex(mainIdx >= 0 ? mainIdx : images.length > 0 ? 0 : null);
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function handleDeleteProject(project: Project) {
-    if (!confirm(`متأكد من حذف مشروع "${project.title}"؟`)) return;
+  async function handleDeleteProduct(product: Product) {
+    if (!confirm(`متأكد من حذف منتج "${product.name}"؟`)) return;
 
-    for (const key of project.galleryKeys || []) {
+    for (const key of product.galleryKeys || []) {
       if (!key) continue;
       try {
         await fetch("/api/r2/delete", {
@@ -210,16 +233,16 @@ export default function AdminProjectsPage() {
       }
     }
 
-    await deleteProject(project.id);
-    if (editingId === project.id) resetForm();
-    loadProjects();
+    await deleteProduct(product.id);
+    if (editingId === product.id) resetForm();
+    loadProducts();
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!form.slug || !form.title) {
-      alert("لازم تدخل العنوان والـ slug على الأقل");
+    if (!form.slug || !form.name) {
+      alert("لازم تدخل الاسم والـ slug على الأقل");
       return;
     }
     if (gallery.length === 0 || mainImageIndex === null) {
@@ -229,19 +252,21 @@ export default function AdminProjectsPage() {
 
     setSaving(true);
     try {
-      const payload: Partial<Omit<Project, "id" | "createdAt">> = {
+      const payload: Omit<Product, "id" | "createdAt"> = {
         slug: form.slug,
-        title: form.title,
-        location: form.location,
-        type: form.type,
-        year: Number(form.year),
+        name: form.name,
+        category: form.category,
+        price: Number(form.price) || 0,
         description: form.description,
         shortDescription: form.shortDescription,
-        badgeText: form.badgeText,
         featured: form.featured,
         mainImage: gallery[mainImageIndex].url,
         gallery: gallery.map((g) => g.url),
         galleryKeys: gallery.map((g) => g.key),
+        imageFit: form.imageFit,
+        imagePositionX: form.imagePositionX,
+        imagePositionY: form.imagePositionY,
+        imageZoom: form.imageZoom,
       };
 
       if (form.cardWidth) {
@@ -252,13 +277,13 @@ export default function AdminProjectsPage() {
       }
 
       if (editingId) {
-        await updateProject(editingId, payload);
+        await updateProduct(editingId, payload);
       } else {
-        await addProject(payload as Omit<Project, "id" | "createdAt">);
+        await addProduct(payload);
       }
 
       resetForm();
-      loadProjects();
+      loadProducts();
     } catch (err) {
       console.error(err);
       alert("حصل خطأ أثناء الحفظ");
@@ -267,41 +292,49 @@ export default function AdminProjectsPage() {
     }
   }
 
-  // 🔍 بيانات البريفيو الحي — نفس شكل Project بالظبط، من الفورم الحالي
-  const previewProject: Project | null =
+  // 🔍 بيانات البريفيو الحي — نفس شكل Product بالظبط، من الفورم الحالي
+  const previewProduct: Product | null =
     mainImageIndex !== null && gallery[mainImageIndex]
       ? {
           id: "preview",
           slug: form.slug || "preview",
-          title: form.title || "عنوان المشروع",
-          location: form.location || "الموقع",
-          type: form.type || "النوع",
-          year: Number(form.year) || new Date().getFullYear(),
+          name: form.name || "اسم المنتج",
+          category: form.category || "الفئة",
+          price: Number(form.price) || 0,
           description: form.description,
-          shortDescription: form.shortDescription || "وصف مختصر للمشروع...",
+          shortDescription: form.shortDescription || "وصف مختصر للمنتج...",
           mainImage: gallery[mainImageIndex].url,
           gallery: gallery.map((g) => g.url),
           galleryKeys: gallery.map((g) => g.key),
           featured: form.featured,
-          badgeText: form.badgeText,
           cardWidth: form.cardWidth ? Number(form.cardWidth) : undefined,
           cardHeight: form.cardHeight ? Number(form.cardHeight) : undefined,
+          imageFit: form.imageFit,
+          imagePositionX: form.imagePositionX,
+          imagePositionY: form.imagePositionY,
+          imageZoom: form.imageZoom,
           createdAt: new Date(),
         }
       : null;
 
+  // نسبة العرض للارتفاع بتاعة محرر الموضع، بنفس منطق الكارت الحقيقي
+  const editorAspectRatio =
+    form.cardWidth && form.cardHeight
+      ? Number(form.cardWidth) / Number(form.cardHeight)
+      : 4 / 3;
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-10">
       <h1 className="text-2xl font-bold text-text-primary">
-        {editingId ? "تعديل مشروع" : "إضافة مشروع جديد"}
+        {editingId ? "تعديل منتج" : "إضافة منتج جديد"}
       </h1>
 
       {/* ═══════════════════════════════════════
-          🏷️ عنوان سكشن المشاريع في الصفحة الرئيسية
+          🏷️ عنوان سكشن المنتجات في الصفحة الرئيسية
       ═══════════════════════════════════════ */}
       <div className="bg-surface-raised border border-border rounded-2xl p-6 space-y-5">
         <h2 className="text-lg font-bold text-text-primary">
-          🏷️ عنوان سكشن المشاريع في الصفحة الرئيسية
+          🏷️ عنوان سكشن المنتجات في الصفحة الرئيسية
         </h2>
 
         {sectionLoading ? (
@@ -364,7 +397,7 @@ export default function AdminProjectsPage() {
 
             {/* بريفيو حي لشكل الشريط الأزرق */}
             <div className="border border-border rounded-xl overflow-hidden">
-              <div className="bg-background py-10 px-6 text-center">
+              <div className="bg-surface py-10 px-6 text-center">
                 <p
                   className="text-primary font-semibold mb-3 tracking-wide"
                   style={{ fontSize: sectionLabelSize }}
@@ -399,12 +432,12 @@ export default function AdminProjectsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              العنوان
+              اسم المنتج
             </label>
             <input
               type="text"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full border border-border rounded-lg px-3 py-2 bg-surface"
               required
             />
@@ -434,49 +467,24 @@ export default function AdminProjectsPage() {
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              الموقع
+              الفئة (تظهر فوق الكارت)
             </label>
             <input
               type="text"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="w-full border border-border rounded-lg px-3 py-2 bg-surface"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-1">
-              النوع (يظهر تحت الكارت)
-            </label>
-            <input
-              type="text"
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
-              className="w-full border border-border rounded-lg px-3 py-2 bg-surface"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              السنة
+              السعر (بالريال السعودي)
             </label>
             <input
               type="number"
-              value={form.year}
-              onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
-              className="w-full border border-border rounded-lg px-3 py-2 bg-surface"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              نص الشريط الأزرق (Badge)
-            </label>
-            <input
-              type="text"
-              value={form.badgeText}
-              onChange={(e) => setForm({ ...form, badgeText: e.target.value })}
-              placeholder="تصميم داخلي / شقة كاملة ..."
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="w-full border border-border rounded-lg px-3 py-2 bg-surface"
             />
           </div>
@@ -514,13 +522,13 @@ export default function AdminProjectsPage() {
             checked={form.featured}
             onChange={(e) => setForm({ ...form, featured: e.target.checked })}
           />
-          مشروع مميز (يظهر في الصفحة الرئيسية)
+          منتج مميز (يظهر في الصفحة الرئيسية)
         </label>
 
-        {/* رفع الصور */}
+        {/* رفع الصور + ترتيب الألبوم */}
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
-            صور المشروع
+            صور المنتج (استخدم ▲▼ لترتيب الألبوم)
           </label>
           <input
             type="file"
@@ -552,6 +560,32 @@ export default function AdminProjectsPage() {
                     className="object-cover"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   />
+
+                  <div className="absolute top-1 right-1 bg-black/60 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
+                    {index + 1}
+                  </div>
+
+                  <div className="absolute top-1 left-1 flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveImage(index, "up")}
+                      disabled={index === 0}
+                      className="bg-black/60 text-white text-xs w-5 h-5 rounded disabled:opacity-30 hover:bg-black/80"
+                      title="حرك لفوق"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveImage(index, "down")}
+                      disabled={index === gallery.length - 1}
+                      className="bg-black/60 text-white text-xs w-5 h-5 rounded disabled:opacity-30 hover:bg-black/80"
+                      title="حرك لتحت"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
                   <div className="absolute inset-x-0 bottom-0 bg-black/60 flex items-center justify-between px-2 py-1">
                     <button
                       type="button"
@@ -574,10 +608,10 @@ export default function AdminProjectsPage() {
           )}
         </div>
 
-        {/* 📐 التحكم في مقاس الكارت وصورة الغلاف */}
-        <div className="border border-border rounded-xl p-4 space-y-4 bg-surface">
+        {/* 📐 التحكم في مقاس الكارت وطريقة عرض الصورة */}
+        <div className="border border-border rounded-xl p-4 space-y-5 bg-surface">
           <p className="text-sm font-semibold text-text-primary">
-            📐 مقاس الكارت وصورة الغلاف
+            📐 مقاس الكارت وطريقة عرض الصورة
           </p>
           <p className="text-xs text-text-muted">
             سيبهم فاضيين لو عايز المقاس التلقائي الافتراضي (زي باقي الكروت)
@@ -646,6 +680,69 @@ export default function AdminProjectsPage() {
               )}
             </div>
           </div>
+
+          {/* طريقة عرض الصورة: Cover / Contain */}
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              طريقة عرض الصورة جوه الكارت
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, imageFit: "cover" })}
+                className={`flex-1 border rounded-lg px-3 py-2 text-sm transition-colors ${
+                  form.imageFit === "cover"
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border text-text-secondary hover:bg-surface-raised"
+                }`}
+              >
+                تعبئة كاملة (Cover)
+                <span className="block text-[11px] text-text-muted mt-0.5">
+                  الصورة بتملا المساحة، ممكن يتقص منها جزء
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, imageFit: "contain" })}
+                className={`flex-1 border rounded-lg px-3 py-2 text-sm transition-colors ${
+                  form.imageFit === "contain"
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border text-text-secondary hover:bg-surface-raised"
+                }`}
+              >
+                احتواء كامل (Contain)
+                <span className="block text-[11px] text-text-muted mt-0.5">
+                  الصورة كلها بتظهر من غير قص
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* 🔍 محرر الزوم والموضع — شغال بس في وضع Cover */}
+          {form.imageFit === "cover" &&
+            mainImageIndex !== null &&
+            gallery[mainImageIndex] && (
+              <div className="pt-2 border-t border-border">
+                <p className="text-sm font-semibold text-text-primary mb-3">
+                  🔍 تكبير وتحريك صورة الغلاف
+                </p>
+                <ImagePositionEditor
+                  src={gallery[mainImageIndex].url}
+                  aspectRatio={editorAspectRatio}
+                  x={form.imagePositionX}
+                  y={form.imagePositionY}
+                  zoom={form.imageZoom}
+                  onChange={({ x, y, zoom }) =>
+                    setForm((f) => ({
+                      ...f,
+                      imagePositionX: x,
+                      imagePositionY: y,
+                      imageZoom: zoom,
+                    }))
+                  }
+                />
+              </div>
+            )}
         </div>
 
         <div className="flex gap-3">
@@ -654,7 +751,7 @@ export default function AdminProjectsPage() {
             disabled={saving || uploading}
             className="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50"
           >
-            {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديلات" : "إضافة المشروع"}
+            {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديلات" : "إضافة المنتج"}
           </button>
           {editingId && (
             <button
@@ -668,14 +765,14 @@ export default function AdminProjectsPage() {
         </div>
       </form>
 
-      {/* 🔍 البريفيو الحي — نفس بنية السكشن الحقيقي في الصفحة الرئيسية بالظبط */}
-      {previewProject && (
+      {/* 🔍 البريفيو الحي — نسخة طبق الأصل من ProductsPreview.tsx الحقيقي */}
+      {previewProduct && (
         <div>
           <h2 className="text-xl font-bold text-text-primary mb-4">
-            🔍 معاينة حية (نفس شكل ومقاس السكشن الحقيقي في الصفحة الرئيسية)
+            🔍 معاينة حية (نفس شكل السكشن في الصفحة الرئيسية بالظبط)
           </h2>
           <div className="border border-border rounded-2xl overflow-hidden">
-            <div className="bg-background py-16 px-6 md:px-12">
+            <section className="bg-surface py-16 px-6 md:px-12">
               <div className="max-w-7xl mx-auto">
                 <div className="text-center mb-6">
                   <p
@@ -696,52 +793,53 @@ export default function AdminProjectsPage() {
                     عرض الكل ←
                   </span>
                 </div>
-                <ProjectsGrid projects={[previewProject]} />
+                <ProductsGrid products={[previewProduct]} />
               </div>
-            </div>
+            </section>
           </div>
         </div>
       )}
 
-      {/* قائمة المشاريع الحالية */}
+      {/* قائمة المنتجات الحالية */}
       <div>
         <h2 className="text-xl font-bold text-text-primary mb-4">
-          المشاريع الحالية
+          المنتجات الحالية
         </h2>
         {loading ? (
           <p className="text-text-muted">جاري التحميل...</p>
-        ) : projects.length === 0 ? (
-          <p className="text-text-muted">لا توجد مشاريع بعد</p>
+        ) : products.length === 0 ? (
+          <p className="text-text-muted">لا توجد منتجات بعد</p>
         ) : (
           <div className="space-y-3">
-            {projects.map((project) => (
+            {products.map((product) => (
               <div
-                key={project.id}
+                key={product.id}
                 className="flex items-center gap-4 bg-surface-raised border border-border rounded-xl p-3"
               >
                 <Image
-                  src={project.mainImage}
-                  alt={project.title}
+                  src={product.mainImage}
+                  alt={product.name}
                   width={64}
                   height={64}
                   className="object-cover rounded-lg"
                 />
                 <div className="flex-1">
                   <p className="font-medium text-text-primary">
-                    {project.title}
+                    {product.name}
                   </p>
                   <p className="text-sm text-text-muted">
-                    {project.location} • {project.year}
+                    {product.category} •{" "}
+                    {product.price?.toLocaleString("ar-SA")} ر.س
                   </p>
                 </div>
                 <button
-                  onClick={() => startEdit(project)}
+                  onClick={() => startEdit(product)}
                   className="px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-surface"
                 >
                   تعديل
                 </button>
                 <button
-                  onClick={() => handleDeleteProject(project)}
+                  onClick={() => handleDeleteProduct(product)}
                   className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-500 hover:bg-red-50"
                 >
                   حذف

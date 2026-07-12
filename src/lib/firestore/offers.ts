@@ -41,6 +41,9 @@ function mapDocToOffer(docSnap: QueryDocumentSnapshot<DocumentData>): Offer {
     imageKey: data.imageKey || undefined,
     videoUrl: data.videoUrl || undefined,
     videoKey: data.videoKey || undefined,
+    // ✅ صورة الغلاف (poster) المستخرجة من الفيديو
+    posterUrl: data.posterUrl || undefined,
+    posterKey: data.posterKey || undefined,
     status: data.status,
     startDate: (data.startDate as Timestamp)?.toDate?.() || new Date(),
     endDate: data.endDate ? (data.endDate as Timestamp).toDate() : undefined,
@@ -136,6 +139,9 @@ export interface OfferInput {
   imageKey?: string;
   videoUrl?: string;
   videoKey?: string;
+  // ✅ صورة الغلاف (poster) المستخرجة من الفيديو
+  posterUrl?: string;
+  posterKey?: string;
   displayDate?: string;
   showDate?: boolean;
   cardHeight?: number;
