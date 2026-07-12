@@ -9,6 +9,8 @@ import ConsultationSection from "@/components/home/ConsultationSection";
 import MapWrapper from "@/components/MapWrapper";
 import { getSettings } from "@/lib/firestore/settings";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const settings = await getSettings(); // ← SSR أسرع!
 

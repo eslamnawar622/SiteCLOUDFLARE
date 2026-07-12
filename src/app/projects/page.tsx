@@ -1,6 +1,8 @@
 import { getAllProjects } from "@/lib/firestore/projects";
 import ProjectsGrid from "@/components/home/ProjectsGrid";
 
+export const dynamic = "force-dynamic";
+
 export default async function AllProjectsPage() {
   const projects = await getAllProjects();
 
