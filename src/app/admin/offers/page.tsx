@@ -135,8 +135,10 @@ function LinkField({ label, url }: { label: string; url: string }) {
 }
 
 // ============================================
-// 🎬 فيديو العروض — رفع مؤقت على Cloudinary + اختيار فريم الغلاف
-// نفس آلية hero-video بالظبط، لكن فيديو واحد بس (مفيش لابتوب/موبايل منفصلين)
+// 🎬 فيديو العروض — رفع مؤقت مباشر على Cloudinary من المتصفح + اختيار فريم الغلاف
+// ⚠️ الرفع بقى بيروح لـ Cloudinary مباشرة (مش عن طريق سيرفر Vercel)
+// عشان Vercel بيرفض أي طلب أكبر من ~4.5MB على الـ Serverless Functions،
+// والفيديوهات (خصوصًا فيديوهات الواتساب) بتكون أكبر من كده بكتير
 // ============================================
 
 interface PendingVideo {
@@ -279,7 +281,6 @@ function OfferStatsBadge({ stats }: { stats?: OfferStats }) {
   const totalViews = stats.totalViews || 0;
   const totalClicks = stats.totalClicks || 0;
   const mobileViews = stats.mobileViews || 0;
-  const desktopViews = stats.desktopViews || 0;
 
   const mobilePercent =
     totalViews > 0 ? Math.round((mobileViews / totalViews) * 100) : 0;
@@ -616,7 +617,9 @@ export default function AdminOffersPage() {
   }
 
   // ═══════════════════════════════════════════
-  // 🎬 خطوة ١: رفع الفيديو مؤقتًا على Cloudinary — عن طريق XHR عشان نقدر نتابع نسبة الرفع %
+  // 🎬 خطوة ١: رفع الفيديو مؤقتًا مباشرة على Cloudinary من المتصفح
+  // (بنتخطى سيرفر Vercel هنا عشان حد الـ 4.5MB بتاعه على الـ Serverless Functions،
+  // وفيديوهات الواتساب وغيرها بتكون أكبر من كده بكتير)
   // ═══════════════════════════════════════════
   function uploadTempWithProgress(
     file: File,
@@ -624,12 +627,20 @@ export default function AdminOffersPage() {
     onProgress: (percent: number) => void
   ): Promise<{ videoUrl: string; publicId: string; duration: number; accountId: string }> {
     return new Promise((resolve, reject) => {
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_HERO_CLOUD_NAME!;
+      const uploadPreset =
+        process.env.NEXT_PUBLIC_CLOUDINARY_HERO_UPLOAD_PRESET!;
+
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("accountId", accountId);
+      formData.append("upload_preset", uploadPreset);
+      formData.append("folder", "temp_offers");
 
       const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/offer-video/upload-temp");
+      xhr.open(
+        "POST",
+        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`
+      );
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -641,16 +652,22 @@ export default function AdminOffersPage() {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            resolve(JSON.parse(xhr.responseText));
+            const data = JSON.parse(xhr.responseText);
+            resolve({
+              videoUrl: data.secure_url,
+              publicId: data.public_id,
+              duration: data.duration || 0,
+              accountId,
+            });
           } catch {
-            reject(new Error("فشل قراءة رد السيرفر"));
+            reject(new Error("فشل قراءة رد Cloudinary"));
           }
         } else {
           reject(new Error("فشل الرفع المؤقت"));
         }
       };
 
-      xhr.onerror = () => reject(new Error("فشل الاتصال بالسيرفر"));
+      xhr.onerror = () => reject(new Error("فشل الاتصال بـ Cloudinary"));
       xhr.send(formData);
     });
   }
@@ -790,10 +807,7 @@ export default function AdminOffersPage() {
       }
 
       if (editingId) {
-        const updateData: Record<
-          string,
-          string | boolean | undefined | number
-        > = {
+        const updateData: Record<string, string | boolean | undefined | number> = {
           title: title.trim(),
           description: description.trim(),
           badgeText: badgeText.trim() || "عرض حالي",
@@ -1172,8 +1186,8 @@ export default function AdminOffersPage() {
                     <div className="flex flex-col gap-0.5 mt-1">
                       {(currentOffer.videoUrl ||
                         currentOffer.imageUrl) && (
-                        <a
-                          href={
+                        
+                          <a href={
                             currentOffer.videoUrl ||
                             currentOffer.imageUrl
                           }
@@ -1185,8 +1199,8 @@ export default function AdminOffersPage() {
                         </a>
                       )}
                       {currentOffer.posterUrlDesktop && (
-                        <a
-                          href={currentOffer.posterUrlDesktop}
+                        
+                          <a href={currentOffer.posterUrlDesktop}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[11px] text-primary hover:underline"
@@ -1195,8 +1209,8 @@ export default function AdminOffersPage() {
                         </a>
                       )}
                       {currentOffer.posterUrlMobile && (
-                        <a
-                          href={currentOffer.posterUrlMobile}
+                        
+                          <a href={currentOffer.posterUrlMobile}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[11px] text-primary hover:underline"
@@ -1206,8 +1220,8 @@ export default function AdminOffersPage() {
                       )}
                       {(currentOffer.videoKey ||
                         currentOffer.imageKey) && (
-                        <a
-                          href={getR2DashboardUrl(
+                        
+                          <a href={getR2DashboardUrl(
                             currentOffer.videoKey ||
                               currentOffer.imageKey ||
                               ""
@@ -1781,11 +1795,6 @@ export default function AdminOffersPage() {
                         </div>
                       </div>
                     )}
-                    {false && (
-                      <p className="text-xs text-primary">
-                        ⏳ جاري الرفع المؤقت على Cloudinary...
-                      </p>
-                    )}
                   </>
                 )}
               </div>
@@ -1974,8 +1983,8 @@ export default function AdminOffersPage() {
 
                     <div className="flex flex-col gap-0.5">
                       {(offer.videoUrl || offer.imageUrl) && (
-                        <a
-                          href={offer.videoUrl || offer.imageUrl}
+                        
+                          <a href={offer.videoUrl || offer.imageUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[10px] text-primary hover:underline truncate"
@@ -1984,8 +1993,8 @@ export default function AdminOffersPage() {
                         </a>
                       )}
                       {(offer.videoKey || offer.imageKey) && (
-                        <a
-                          href={getR2DashboardUrl(
+                        
+                          <a href={getR2DashboardUrl(
                             offer.videoKey || offer.imageKey || ""
                           )}
                           target="_blank"
