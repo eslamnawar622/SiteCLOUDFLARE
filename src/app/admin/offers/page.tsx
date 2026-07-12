@@ -446,17 +446,23 @@ export default function AdminOffersPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // ─── فيديو العرض: نفس آلية hero-video (رفع مؤقت → اختيار فريم → اعتماد) ───
+  // ─── فيديو العرض: نفس آلية hero-video (رفع مؤقت → اختيار فريمين → اعتماد) ───
   const [videoUrl, setVideoUrl] = useState("");
   const [videoKey, setVideoKey] = useState("");
-  const [posterUrl, setPosterUrl] = useState("");
-  const [posterKey, setPosterKey] = useState("");
+  const [posterUrlDesktop, setPosterUrlDesktop] = useState("");
+  const [posterKeyDesktop, setPosterKeyDesktop] = useState("");
+  const [posterUrlMobile, setPosterUrlMobile] = useState("");
+  const [posterKeyMobile, setPosterKeyMobile] = useState("");
   const [uploadingVideoTemp, setUploadingVideoTemp] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [finalizingVideo, setFinalizingVideo] = useState(false);
   const [pendingVideo, setPendingVideo] = useState<PendingVideo | null>(null);
-  const [videoFrame, setVideoFrame] = useState(0);
+  // ✅ فريمين منفصلين — واحد للابتوب وواحد للموبايل، كل واحد بيتقص حسب أبعاد عرضه الفعلية
+  const [desktopFrame, setDesktopFrame] = useState(0);
+  const [mobileFrame, setMobileFrame] = useState(0);
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const desktopVideoPreviewRef = useRef<HTMLVideoElement>(null);
+  const mobileVideoPreviewRef = useRef<HTMLVideoElement>(null);
 
   const [currentMobileHeight, setCurrentMobileHeight] = useState(256);
   const [currentDesktopHeight, setCurrentDesktopHeight] = useState(400);
@@ -546,10 +552,14 @@ export default function AdminOffersPage() {
     setImagePreview(null);
     setVideoUrl("");
     setVideoKey("");
-    setPosterUrl("");
-    setPosterKey("");
+    setPosterUrlDesktop("");
+    setPosterKeyDesktop("");
+    setPosterUrlMobile("");
+    setPosterKeyMobile("");
     setPendingVideo(null);
-    setVideoFrame(0);
+    setDesktopFrame(0);
+    setMobileFrame(0);
+    setUploadProgress(0);
     setCurrentMobileHeight(256);
     setCurrentDesktopHeight(400);
     setCurrentDesktopWidth(50);
@@ -580,10 +590,14 @@ export default function AdminOffersPage() {
     setImagePreview(null);
     setVideoUrl(offer.videoUrl || "");
     setVideoKey(offer.videoKey || "");
-    setPosterUrl(offer.posterUrl || "");
-    setPosterKey(offer.posterKey || "");
+    setPosterUrlDesktop(offer.posterUrlDesktop || "");
+    setPosterKeyDesktop(offer.posterKeyDesktop || "");
+    setPosterUrlMobile(offer.posterUrlMobile || "");
+    setPosterKeyMobile(offer.posterKeyMobile || "");
     setPendingVideo(null);
-    setVideoFrame(0);
+    setDesktopFrame(0);
+    setMobileFrame(0);
+    setUploadProgress(0);
     setCurrentMobileHeight(offer.currentMobileHeight || 256);
     setCurrentDesktopHeight(offer.currentDesktopHeight || 400);
     setCurrentDesktopWidth(offer.currentDesktopWidth || 50);
@@ -602,25 +616,57 @@ export default function AdminOffersPage() {
   }
 
   // ═══════════════════════════════════════════
-  // 🎬 خطوة ١: رفع الفيديو مؤقتًا على Cloudinary
+  // 🎬 خطوة ١: رفع الفيديو مؤقتًا على Cloudinary — عن طريق XHR عشان نقدر نتابع نسبة الرفع %
   // ═══════════════════════════════════════════
+  function uploadTempWithProgress(
+    file: File,
+    accountId: string,
+    onProgress: (percent: number) => void
+  ): Promise<{ videoUrl: string; publicId: string; duration: number; accountId: string }> {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("accountId", accountId);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/offer-video/upload-temp");
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("فشل قراءة رد السيرفر"));
+          }
+        } else {
+          reject(new Error("فشل الرفع المؤقت"));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("فشل الاتصال بالسيرفر"));
+      xhr.send(formData);
+    });
+  }
+
   async function handleVideoFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingVideoTemp(true);
+    setUploadProgress(0);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("accountId", OFFER_VIDEO_ACCOUNT);
-
-      const res = await fetch("/api/offer-video/upload-temp", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error("فشل الرفع المؤقت");
-      const data = await res.json();
+      const data = await uploadTempWithProgress(
+        file,
+        OFFER_VIDEO_ACCOUNT,
+        setUploadProgress
+      );
 
       setPendingVideo({
         videoUrl: data.videoUrl,
@@ -629,28 +675,37 @@ export default function AdminOffersPage() {
         accountId: data.accountId,
         fileExt: getFileExt(file.name),
       });
-      setVideoFrame(0);
+      setDesktopFrame(0);
+      setMobileFrame(0);
     } catch (error) {
       console.error(error);
       alert("فشل رفع الفيديو، حاول تاني");
     } finally {
       setUploadingVideoTemp(false);
+      setUploadProgress(0);
     }
     if (videoInputRef.current) videoInputRef.current.value = "";
   }
 
   // ═══════════════════════════════════════════
-  // 🎯 السلايدر: تحريك الفيديو للفريم المختار
+  // 🎯 السلايدرات: تحريك كل معاينة لفريمها المختار — لكل جهاز لوحده
   // ═══════════════════════════════════════════
-  function handleVideoFrameChange(value: number) {
-    setVideoFrame(value);
-    if (videoPreviewRef.current) {
-      videoPreviewRef.current.currentTime = value;
+  function handleDesktopFrameChange(value: number) {
+    setDesktopFrame(value);
+    if (desktopVideoPreviewRef.current) {
+      desktopVideoPreviewRef.current.currentTime = value;
+    }
+  }
+
+  function handleMobileFrameChange(value: number) {
+    setMobileFrame(value);
+    if (mobileVideoPreviewRef.current) {
+      mobileVideoPreviewRef.current.currentTime = value;
     }
   }
 
   // ═══════════════════════════════════════════
-  // ✅ خطوة ٢: اعتماد الفريم → نقل نهائي لـ R2 (فيديو + صورة الغلاف)
+  // ✅ خطوة ٢: اعتماد الفريمين → نقل نهائي لـ R2 (فيديو + صورة غلاف اللابتوب + صورة غلاف الموبايل)
   // ═══════════════════════════════════════════
   async function handleConfirmVideoFrame() {
     if (!pendingVideo) return;
@@ -663,7 +718,8 @@ export default function AdminOffersPage() {
           publicId: pendingVideo.publicId,
           accountId: pendingVideo.accountId,
           videoUrl: pendingVideo.videoUrl,
-          frameSecond: videoFrame,
+          frameSecondDesktop: desktopFrame,
+          frameSecondMobile: mobileFrame,
           folder: OFFER_VIDEO_FOLDER,
           fileExt: pendingVideo.fileExt,
         }),
@@ -672,18 +728,21 @@ export default function AdminOffersPage() {
       if (!res.ok) throw new Error("فشل الاعتماد النهائي");
       const result = await res.json();
 
-      // امسح الفيديو/الصورة القديمين من R2 لو كانوا موجودين
+      // امسح الفيديو/الصور القديمة من R2 لو كانوا موجودين
       if (videoKey) await deleteFileFromR2(videoKey);
-      if (posterKey) await deleteFileFromR2(posterKey);
+      if (posterKeyDesktop) await deleteFileFromR2(posterKeyDesktop);
+      if (posterKeyMobile) await deleteFileFromR2(posterKeyMobile);
 
       setVideoUrl(result.url);
       setVideoKey(result.key);
-      setPosterUrl(result.posterUrl);
-      setPosterKey(result.posterKey);
+      setPosterUrlDesktop(result.posterUrlDesktop);
+      setPosterKeyDesktop(result.posterKeyDesktop);
+      setPosterUrlMobile(result.posterUrlMobile);
+      setPosterKeyMobile(result.posterKeyMobile);
       setPendingVideo(null);
     } catch (error) {
       console.error(error);
-      alert("فشل اعتماد الفريم، حاول تاني");
+      alert("فشل اعتماد الفريمين، حاول تاني");
     } finally {
       setFinalizingVideo(false);
     }
@@ -691,7 +750,8 @@ export default function AdminOffersPage() {
 
   function handleCancelPendingVideo() {
     setPendingVideo(null);
-    setVideoFrame(0);
+    setDesktopFrame(0);
+    setMobileFrame(0);
   }
 
   function handleRemoveVideo() {
@@ -699,8 +759,10 @@ export default function AdminOffersPage() {
     // أو تقدر تمسحه وتحفظ عرض بصورة بس)
     setVideoUrl("");
     setVideoKey("");
-    setPosterUrl("");
-    setPosterKey("");
+    setPosterUrlDesktop("");
+    setPosterKeyDesktop("");
+    setPosterUrlMobile("");
+    setPosterKeyMobile("");
   }
 
   async function handleSaveOffer() {
@@ -744,11 +806,13 @@ export default function AdminOffersPage() {
           badgeOrientationDesktop,
           badgeSizeMobile,
           badgeSizeDesktop,
-          // ✅ الفيديو والغلاف كانوا خلاص اتعملهم finalize واتحفظوا على R2
+          // ✅ الفيديو والفريمين كانوا خلاص اتعملهم finalize واتحفظوا على R2
           videoUrl: videoUrl || undefined,
           videoKey: videoKey || undefined,
-          posterUrl: posterUrl || undefined,
-          posterKey: posterKey || undefined,
+          posterUrlDesktop: posterUrlDesktop || undefined,
+          posterKeyDesktop: posterKeyDesktop || undefined,
+          posterUrlMobile: posterUrlMobile || undefined,
+          posterKeyMobile: posterKeyMobile || undefined,
         };
         if (imageUrl) updateData.imageUrl = imageUrl;
         if (imageKey) updateData.imageKey = imageKey;
@@ -766,8 +830,10 @@ export default function AdminOffersPage() {
           imageKey,
           videoUrl: videoUrl || undefined,
           videoKey: videoKey || undefined,
-          posterUrl: posterUrl || undefined,
-          posterKey: posterKey || undefined,
+          posterUrlDesktop: posterUrlDesktop || undefined,
+          posterKeyDesktop: posterKeyDesktop || undefined,
+          posterUrlMobile: posterUrlMobile || undefined,
+          posterKeyMobile: posterKeyMobile || undefined,
           currentMobileHeight,
           currentDesktopHeight,
           currentDesktopWidth,
@@ -823,8 +889,10 @@ export default function AdminOffersPage() {
         await deleteFileFromR2(currentOffer.imageKey);
       if (currentOffer.videoKey)
         await deleteFileFromR2(currentOffer.videoKey);
-      if (currentOffer.posterKey)
-        await deleteFileFromR2(currentOffer.posterKey);
+      if (currentOffer.posterKeyDesktop)
+        await deleteFileFromR2(currentOffer.posterKeyDesktop);
+      if (currentOffer.posterKeyMobile)
+        await deleteFileFromR2(currentOffer.posterKeyMobile);
       await deleteOffer(currentOffer.id);
     } catch (error) {
       console.error(error);
@@ -911,7 +979,8 @@ export default function AdminOffersPage() {
     try {
       if (offer.imageKey) await deleteFileFromR2(offer.imageKey);
       if (offer.videoKey) await deleteFileFromR2(offer.videoKey);
-      if (offer.posterKey) await deleteFileFromR2(offer.posterKey);
+      if (offer.posterKeyDesktop) await deleteFileFromR2(offer.posterKeyDesktop);
+      if (offer.posterKeyMobile) await deleteFileFromR2(offer.posterKeyMobile);
       await deleteOffer(offer.id);
     } catch (error) {
       console.error(error);
@@ -1048,7 +1117,7 @@ export default function AdminOffersPage() {
                   {currentOffer.videoUrl ? (
                     <video
                       src={currentOffer.videoUrl}
-                      poster={currentOffer.posterUrl || undefined}
+                      poster={currentOffer.posterUrlDesktop || undefined}
                       className="w-20 h-20 object-cover rounded-lg"
                       muted
                       loop
@@ -1115,14 +1184,24 @@ export default function AdminOffersPage() {
                           🔗 فتح الملف مباشرة
                         </a>
                       )}
-                      {currentOffer.posterUrl && (
+                      {currentOffer.posterUrlDesktop && (
                         <a
-                          href={currentOffer.posterUrl}
+                          href={currentOffer.posterUrlDesktop}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[11px] text-primary hover:underline"
                         >
-                          🖼️ فتح صورة الغلاف
+                          🖥️ فتح صورة غلاف اللابتوب
+                        </a>
+                      )}
+                      {currentOffer.posterUrlMobile && (
+                        <a
+                          href={currentOffer.posterUrlMobile}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          📱 فتح صورة غلاف الموبايل
                         </a>
                       )}
                       {(currentOffer.videoKey ||
@@ -1453,7 +1532,11 @@ export default function AdminOffersPage() {
                       {videoUrl ? (
                         <video
                           src={videoUrl}
-                          poster={posterUrl || undefined}
+                          poster={
+                            (previewDevice === "mobile"
+                              ? posterUrlMobile
+                              : posterUrlDesktop) || undefined
+                          }
                           className="w-full h-full object-cover"
                           muted
                           loop
@@ -1534,51 +1617,95 @@ export default function AdminOffersPage() {
                 />
               )}
 
-              {/* ═══════════════ 🎬 فيديو العرض — رفع مؤقت + اختيار فريم الغلاف ═══════════════ */}
+              {/* ═══════════════ 🎬 فيديو العرض — رفع مؤقت + اختيار فريمين (لابتوب وموبايل) ═══════════════ */}
               <div className="border border-border rounded-lg p-4 space-y-3 bg-surface">
                 <p className="text-xs font-semibold text-text-primary">
                   🎬 فيديو العرض{" "}
                   {editingId ? "(اختياري - اتركه زي ما هو لو مش عايز تغيّر)" : "(اختياري بدل الصورة أو معاها)"}
                 </p>
                 <p className="text-[10px] text-text-muted">
-                  بيترفع مؤقتًا على Cloudinary الأول، وتقدر تحرك السلايدر
-                  وتختار فريم الغلاف بنفسك، وبعد الاعتماد بينقل الفيديو
-                  والصورة لـ R2 نهائيًا.
+                  بيترفع مؤقتًا على Cloudinary الأول، وتقدر تختار فريم غلاف
+                  منفصل لكل جهاز (لأن القص بيختلف حسب أبعاد العرض اللي
+                  حددتها فوق)، وبعد الاعتماد بينقل الفيديو والصورتين لـ R2
+                  نهائيًا.
                 </p>
 
-                {/* ─── وضع اختيار الفريم (فيديو مؤقت جديد) ─── */}
+                {/* ─── وضع اختيار الفريمين (فيديو مؤقت جديد) ─── */}
                 {pendingVideo ? (
-                  <div className="space-y-3 border border-primary/40 rounded-lg p-3 bg-primary/5">
-                    <p className="text-xs font-medium text-primary">
-                      🎯 اختر فريم الغلاف بتحريك السلايدر
-                    </p>
-                    <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
-                      <video
-                        ref={videoPreviewRef}
-                        src={pendingVideo.videoUrl}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                        preload="auto"
+                  <div className="space-y-4 border border-primary/40 rounded-lg p-3 bg-primary/5">
+                    {/* 🖥️ فريم اللابتوب */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-primary">
+                        🖥️ اختر فريم غلاف اللابتوب
+                      </p>
+                      <div
+                        className="rounded-lg overflow-hidden border border-border bg-black mx-auto"
+                        style={{
+                          aspectRatio: `${currentDesktopWidth || 50} / 30`,
+                          maxWidth: "100%",
+                        }}
+                      >
+                        <video
+                          ref={desktopVideoPreviewRef}
+                          src={pendingVideo.videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="auto"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(pendingVideo.duration - 0.1, 0.1)}
+                        step={0.1}
+                        value={desktopFrame}
+                        onChange={(e) =>
+                          handleDesktopFrameChange(parseFloat(e.target.value))
+                        }
+                        className="w-full cursor-pointer accent-primary"
                       />
+                      <div className="flex justify-between text-xs text-text-muted">
+                        <span>0:00</span>
+                        <span>{desktopFrame.toFixed(1)}s</span>
+                        <span>{pendingVideo.duration.toFixed(1)}s</span>
+                      </div>
                     </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={Math.max(pendingVideo.duration - 0.1, 0.1)}
-                      step={0.1}
-                      value={videoFrame}
-                      onChange={(e) =>
-                        handleVideoFrameChange(parseFloat(e.target.value))
-                      }
-                      className="w-full cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-xs text-text-muted">
-                      <span>0:00</span>
-                      <span>{videoFrame.toFixed(1)}s</span>
-                      <span>{pendingVideo.duration.toFixed(1)}s</span>
+
+                    {/* 📱 فريم الموبايل */}
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-xs font-medium text-primary">
+                        📱 اختر فريم غلاف الموبايل
+                      </p>
+                      <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video max-w-sm mx-auto">
+                        <video
+                          ref={mobileVideoPreviewRef}
+                          src={pendingVideo.videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          preload="auto"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(pendingVideo.duration - 0.1, 0.1)}
+                        step={0.1}
+                        value={mobileFrame}
+                        onChange={(e) =>
+                          handleMobileFrameChange(parseFloat(e.target.value))
+                        }
+                        className="w-full cursor-pointer accent-primary"
+                      />
+                      <div className="flex justify-between text-xs text-text-muted">
+                        <span>0:00</span>
+                        <span>{mobileFrame.toFixed(1)}s</span>
+                        <span>{pendingVideo.duration.toFixed(1)}s</span>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex gap-2 pt-1">
                       <button
                         type="button"
                         onClick={handleConfirmVideoFrame}
@@ -1587,7 +1714,7 @@ export default function AdminOffersPage() {
                       >
                         {finalizingVideo
                           ? "⏳ جاري الاعتماد..."
-                          : "✅ اعتماد الفريم ده"}
+                          : "✅ اعتماد الفريمين"}
                       </button>
                       <button
                         type="button"
@@ -1606,17 +1733,18 @@ export default function AdminOffersPage() {
                         <div className="rounded-lg overflow-hidden border border-border bg-black aspect-video">
                           <video
                             src={videoUrl}
-                            poster={posterUrl || undefined}
+                            poster={posterUrlDesktop || undefined}
                             className="w-full h-full object-cover"
                             controls
                             muted
                           />
                         </div>
 
-                        {/* ═══ اللينكات النهائية على R2 — نفس شكل صفحة الهيرو ═══ */}
+                        {/* ═══ اللينكات النهائية على R2 — نفس شكل صفحة الهيرو، لكل جهاز لوحده ═══ */}
                         <div className="space-y-2 bg-surface-raised rounded-lg p-3 border border-border">
                           <LinkField label="🔗 لينك الفيديو (R2)" url={videoUrl} />
-                          <LinkField label="🖼️ لينك صورة الغلاف / الـ Placeholder (R2)" url={posterUrl} />
+                          <LinkField label="🖥️ لينك صورة غلاف اللابتوب (R2)" url={posterUrlDesktop} />
+                          <LinkField label="📱 لينك صورة غلاف الموبايل (R2)" url={posterUrlMobile} />
                         </div>
 
                         <button
@@ -1637,7 +1765,23 @@ export default function AdminOffersPage() {
                       disabled={uploadingVideoTemp}
                       className="block w-full text-sm text-text-secondary file:ml-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dark file:cursor-pointer cursor-pointer"
                     />
+
+                    {/* ✅ شريط تقدم الرفع المؤقت — نسبة % حية */}
                     {uploadingVideoTemp && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs text-primary">
+                          <span>⏳ جاري الرفع المؤقت على Cloudinary...</span>
+                          <span className="font-bold">{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-border overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-200 ease-out rounded-full"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {false && (
                       <p className="text-xs text-primary">
                         ⏳ جاري الرفع المؤقت على Cloudinary...
                       </p>

@@ -29,6 +29,42 @@ const CLOUDINARY_ACCOUNTS = {
   },
 };
 
+// بيحمّل فريم من Cloudinary عند ثانية معينة ويرفعه على R2
+async function extractAndUploadPoster(
+  videoUrl: string,
+  frameSecond: number,
+  folder: string,
+  label: "desktop" | "mobile"
+): Promise<{ url: string; key: string }> {
+  const safeFrameSecond = Math.max(0, Math.round((frameSecond || 0) * 10) / 10);
+
+  const posterSourceUrl = videoUrl
+    .replace("/upload/", `/upload/so_${safeFrameSecond}/`)
+    .replace(/\.[^/.]+$/, ".jpg");
+
+  const posterResponse = await fetch(posterSourceUrl);
+  if (!posterResponse.ok) {
+    const errText = await posterResponse.text().catch(() => "");
+    throw new Error(
+      `فشل تحميل صورة الغلاف (${label}) (status: ${posterResponse.status}, url: ${posterSourceUrl}) ${errText}`.trim()
+    );
+  }
+  const posterBuffer = Buffer.from(await posterResponse.arrayBuffer());
+
+  const posterKey = `${folder}/posters/${Date.now()}_poster_${label}.jpg`;
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: posterKey,
+      Body: posterBuffer,
+      ContentType: "image/jpeg",
+    })
+  );
+
+  const r2PublicUrl = process.env.R2_PUBLIC_URL;
+  return { url: `${r2PublicUrl}/${posterKey}`, key: posterKey };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -36,14 +72,16 @@ export async function POST(req: NextRequest) {
       publicId,
       accountId,
       videoUrl,
-      frameSecond,
+      frameSecondDesktop,
+      frameSecondMobile,
       folder,
       fileExt,
     } = body as {
       publicId: string;
       accountId: string;
       videoUrl: string;
-      frameSecond: number;
+      frameSecondDesktop: number;
+      frameSecondMobile: number;
       folder: string;
       fileExt: string;
     };
@@ -63,15 +101,7 @@ export async function POST(req: NextRequest) {
       api_secret: account.api_secret,
     });
 
-    // 1️⃣ تقريب الثانية لرقم عشري واحد بس (يمنع مشاكل floating point)
-    const safeFrameSecond = Math.max(0, Math.round((frameSecond || 0) * 10) / 10);
-
-    // 2️⃣ بناء رابط الـ Poster من اللحظة اللي اخترتها بالظبط
-    const posterUrl = videoUrl
-      .replace("/upload/", `/upload/so_${safeFrameSecond}/`)
-      .replace(/\.[^/.]+$/, ".jpg");
-
-    // 3️⃣ تحميل الفيديو نفسه من Cloudinary (عشان ننقله لـ R2)
+    // 1️⃣ تحميل الفيديو نفسه من Cloudinary (عشان ننقله لـ R2)
     const videoResponse = await fetch(videoUrl);
     if (!videoResponse.ok) {
       const errText = await videoResponse.text().catch(() => "");
@@ -81,17 +111,7 @@ export async function POST(req: NextRequest) {
     }
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
-    // 4️⃣ تحميل صورة الـ Poster من اللحظة المختارة
-    const posterResponse = await fetch(posterUrl);
-    if (!posterResponse.ok) {
-      const errText = await posterResponse.text().catch(() => "");
-      throw new Error(
-        `فشل تحميل صورة الغلاف (status: ${posterResponse.status}, url: ${posterUrl}) ${errText}`.trim()
-      );
-    }
-    const posterBuffer = Buffer.from(await posterResponse.arrayBuffer());
-
-    // 5️⃣ رفع الفيديو على R2
+    // 2️⃣ رفع الفيديو على R2
     const videoKey = `${folder}/${Date.now()}_video.${fileExt || "mp4"}`;
     const videoUpload = new Upload({
       client: r2,
@@ -104,28 +124,26 @@ export async function POST(req: NextRequest) {
     });
     await videoUpload.done();
 
-    // 6️⃣ رفع صورة الـ Poster على R2
-    const posterKey = `${folder}/posters/${Date.now()}_poster.jpg`;
-    await r2.send(new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: posterKey,
-      Body: posterBuffer,
-      ContentType: "image/jpeg",
-    }));
+    // 3️⃣ استخراج ورفع فريم اللابتوب وفريم الموبايل — كل واحد لوحده بالثانية اللي اختارها الأدمن
+    const [desktopPoster, mobilePoster] = await Promise.all([
+      extractAndUploadPoster(videoUrl, frameSecondDesktop, folder, "desktop"),
+      extractAndUploadPoster(videoUrl, frameSecondMobile, folder, "mobile"),
+    ]);
 
-    // 7️⃣ حذف الفيديو من Cloudinary (نظف وراك)
+    // 4️⃣ حذف الفيديو من Cloudinary (نظف وراك)
     await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
 
-    // 8️⃣ URLs النهائية على R2
+    // 5️⃣ URLs النهائية على R2
     const r2PublicUrl = process.env.R2_PUBLIC_URL;
     const finalVideoUrl = `${r2PublicUrl}/${videoKey}`;
-    const finalPosterUrl = `${r2PublicUrl}/${posterKey}`;
 
     return NextResponse.json({
       url: finalVideoUrl,
-      posterUrl: finalPosterUrl,
       key: videoKey,
-      posterKey: posterKey,
+      posterUrlDesktop: desktopPoster.url,
+      posterKeyDesktop: desktopPoster.key,
+      posterUrlMobile: mobilePoster.url,
+      posterKeyMobile: mobilePoster.key,
     });
   } catch (error) {
     console.error(error);

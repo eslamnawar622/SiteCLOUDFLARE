@@ -41,9 +41,11 @@ function mapDocToOffer(docSnap: QueryDocumentSnapshot<DocumentData>): Offer {
     imageKey: data.imageKey || undefined,
     videoUrl: data.videoUrl || undefined,
     videoKey: data.videoKey || undefined,
-    // ✅ صورة الغلاف (poster) المستخرجة من الفيديو
-    posterUrl: data.posterUrl || undefined,
-    posterKey: data.posterKey || undefined,
+    // ✅ صور الغلاف (poster) المستخرجة من الفيديو — فريم منفصل لكل جهاز
+    posterUrlDesktop: data.posterUrlDesktop || undefined,
+    posterKeyDesktop: data.posterKeyDesktop || undefined,
+    posterUrlMobile: data.posterUrlMobile || undefined,
+    posterKeyMobile: data.posterKeyMobile || undefined,
     status: data.status,
     startDate: (data.startDate as Timestamp)?.toDate?.() || new Date(),
     endDate: data.endDate ? (data.endDate as Timestamp).toDate() : undefined,
@@ -139,9 +141,11 @@ export interface OfferInput {
   imageKey?: string;
   videoUrl?: string;
   videoKey?: string;
-  // ✅ صورة الغلاف (poster) المستخرجة من الفيديو
-  posterUrl?: string;
-  posterKey?: string;
+  // ✅ صور الغلاف (poster) المستخرجة من الفيديو — فريم منفصل لكل جهاز
+  posterUrlDesktop?: string;
+  posterKeyDesktop?: string;
+  posterUrlMobile?: string;
+  posterKeyMobile?: string;
   displayDate?: string;
   showDate?: boolean;
   cardHeight?: number;

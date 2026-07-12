@@ -32,9 +32,12 @@ export interface Offer {
   imageKey?: string;
   videoUrl?: string;
   videoKey?: string;
-  // ✅ صورة الغلاف (poster) المستخرجة من الفيديو — بتتعرض فورًا قبل ما الفيديو يحمّل
-  posterUrl?: string;
-  posterKey?: string;
+  // ✅ صور الغلاف (poster) المستخرجة من الفيديو — فريم منفصل لكل جهاز
+  // بتتعرض فورًا قبل ما الفيديو يحمّل، وكل واحدة بتتقص بنفس أبعاد عرضها الفعلي
+  posterUrlDesktop?: string;
+  posterKeyDesktop?: string;
+  posterUrlMobile?: string;
+  posterKeyMobile?: string;
   status: "current" | "archived";
   startDate: Date;
   endDate?: Date;

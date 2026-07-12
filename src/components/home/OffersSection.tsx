@@ -210,6 +210,11 @@ export default function OffersSection() {
     : currentOffer?.badgeSizeMobile || 100;
   const badgeScale = badgeSize / 100;
 
+  // ✅ صورة الغلاف المناسبة حسب الجهاز — بتظهر فورًا قبل ما الفيديو يحمّل
+  const posterUrl = isDesktop
+    ? currentOffer?.posterUrlDesktop
+    : currentOffer?.posterUrlMobile;
+
   return (
     <section id="offers" className="bg-surface py-16 px-6 md:px-12 relative">
       <div className="max-w-6xl mx-auto">
@@ -262,12 +267,12 @@ export default function OffersSection() {
             <div className="relative flex-shrink-0" style={mediaStyle}>
               {currentOffer.videoUrl ? (
                 <>
-                  {/* ✅ poster = صورة الفريم المستخرج من الفيديو، بتظهر فورًا قبل ما الفيديو يحمّل — زي الهيرو بالظبط */}
+                  {/* ✅ poster = صورة الفريم المستخرج من الفيديو حسب الجهاز، بتظهر فورًا قبل ما الفيديو يحمّل — زي الهيرو بالظبط */}
                   <video
                     ref={videoRef}
                     className="w-full h-full object-cover"
                     src={currentOffer.videoUrl}
-                    poster={currentOffer.posterUrl || currentOffer.imageUrl}
+                    poster={posterUrl || currentOffer.imageUrl}
                     autoPlay
                     muted={muted}
                     loop
